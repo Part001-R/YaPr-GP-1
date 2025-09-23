@@ -71,7 +71,7 @@ type HistoryWithdrawalsT struct {
 
 // Интерфейсы
 type ActionsRegI interface {
-	RegistrationUser(login, password string) (err error)
+	RegistrationUser(login, password string) (string, error)
 }
 
 type ActionsAuthI interface {

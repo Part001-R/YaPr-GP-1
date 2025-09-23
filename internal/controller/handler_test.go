@@ -258,11 +258,13 @@ func Test_UserRegisterLayerTx_SUCCESS(t *testing.T) {
 	// Данные для тестов
 	testsData := []struct {
 		nameT      string
+		tokenT     string
 		wantErr    error
 		wantStatus int
 	}{
 		{
 			nameT:      "Корректные данные",
+			tokenT:     "token",
 			wantErr:    nil,
 			wantStatus: http.StatusOK,
 		},
@@ -274,7 +276,7 @@ func Test_UserRegisterLayerTx_SUCCESS(t *testing.T) {
 
 			res := httptest.NewRecorder()
 
-			err := UserRegisterLayerTx(res)
+			err := UserRegisterLayerTx(res, tt.tokenT)
 
 			resp := res.Result()
 			defer func() {
@@ -283,6 +285,7 @@ func Test_UserRegisterLayerTx_SUCCESS(t *testing.T) {
 
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+			assert.Equalf(t, tt.tokenT, resp.Header.Get("Authorization"), "ожидался токена <%s> а принято <%s>", tt.tokenT, resp.Header.Get)
 
 		})
 	}
@@ -312,7 +315,7 @@ func Test_UserRegisterLayerTx_FAULT(t *testing.T) {
 				res = httptest.NewRecorder()
 			}
 
-			err := UserRegisterLayerTx(res)
+			err := UserRegisterLayerTx(res, "token")
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 		})
 	}

@@ -21,7 +21,7 @@ import (
 //
 // login - имя пользователя.
 // password - пароль.
-func (a *PostgresT) RegisterUser(login, password string) (int, error) {
+func (a *PostgresT) RegisterUser(login, password string) (int64, error) {
 
 	// Проверка аргументов
 	if a.PtrDB == nil {
@@ -61,7 +61,7 @@ func (a *PostgresT) RegisterUser(login, password string) (int, error) {
 // Параметры:
 //
 // userID - id пользователя.
-func (a *PostgresT) CreateUserBalance(userID int) error {
+func (a *PostgresT) CreateUserBalance(userID int64) error {
 
 	// Проверка аргументов
 	if a.PtrDB == nil {
@@ -490,6 +490,52 @@ func (a *PostgresT) GetOrdersInQueue() ([]string, error) {
 	return orderNumbers, nil
 }
 
+// Функция выполняет обновление токена при аутентификации пользователя. Возвращает токен и ошибку.
+//
+// Параметры:
+// tx - указатель на транзакцию.
+// id - id из таблицы пользователей.
+func (a *PostgresT) CreateUpdateToken(id int64) (string, error) {
+
+	// Проверка аргументов
+	if id < 1 {
+		return "", errors.New("недопустимое значение в id")
+	}
+
+	// Логика
+	var token string
+	var err error
+
+	for {
+		token, err = generateRandomToken(50)
+		if err != nil {
+			return "", fmt.Errorf("ошибка при генерации токена: <%w>", err)
+		}
+
+		// Время действия токена - 1 час
+		createdAt := time.Now()
+		expiredAt := time.Now().Add(1 * time.Hour)
+
+		// Установка поля access в true - доступ к БД (флаг авторизации)
+		query := `
+			INSERT INTO user_tokens (user_id, token, created_at, expired_at, access)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (user_id) DO UPDATE
+			SET token = EXCLUDED.token, created_at = EXCLUDED.created_at, expired_at = EXCLUDED.expired_at, access = EXCLUDED.access;
+		`
+		if _, err := a.PtrDB.Exec(query, id, token, createdAt, expiredAt, true); err != nil {
+			if errConflictToken == err.Error() { // обнаружение конфликта токенов
+				continue
+			}
+			return "", fmt.Errorf("ошибка обновления токена: <%w>", err)
+		}
+		break
+	}
+
+	// Результат
+	return token, nil
+}
+
 // Функция выполняет удалени номера заказа из очереди ожидающих. Возвращает ошибку.
 //
 // Параметры:
@@ -643,7 +689,7 @@ func generateRandomToken(length int) (string, error) {
 // tx - транзакция.
 // login - логин.
 // password - пароль.
-func addUserTx(tx *sql.Tx, login, password string) (int, error) {
+func addUserTx(tx *sql.Tx, login, password string) (int64, error) {
 
 	// Проверка аргументов
 	if tx == nil {
@@ -659,7 +705,7 @@ func addUserTx(tx *sql.Tx, login, password string) (int, error) {
 		return 0, fmt.Errorf("ошибка при создании хеша пароля: <%w>", err)
 	}
 
-	var newUserID int
+	var newUserID int64
 	query := `INSERT INTO users (user_name, user_password) VALUES ($1, $2) RETURNING id`
 
 	if err := tx.QueryRow(query, login, hashPwd).Scan(&newUserID); err != nil {

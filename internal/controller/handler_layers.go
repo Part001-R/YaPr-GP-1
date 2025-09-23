@@ -65,7 +65,7 @@ func UserRegisterLayerRx(r *http.Request) (RegisterRxT, error) {
 	return rxData, nil
 }
 
-func UserRegisterLayerTx(w http.ResponseWriter) error {
+func UserRegisterLayerTx(w http.ResponseWriter, token string) error {
 
 	// Проверка аргументов
 	if w == nil {
@@ -73,6 +73,7 @@ func UserRegisterLayerTx(w http.ResponseWriter) error {
 	}
 
 	// Результат
+	w.Header().Set("Authorization", token)
 	w.WriteHeader(http.StatusOK)
 
 	return nil

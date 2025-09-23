@@ -53,7 +53,7 @@ type BalanceT struct {
 
 // Интерфейсы
 type RegistrationUserDBI interface {
-	RegisterUser(login, password string) (int, error)
+	RegisterUser(login, password string) (int64, error)
 }
 
 type AuthenticationUserDBI interface {
@@ -77,7 +77,7 @@ type HistoryWithrawalsDBI interface {
 }
 
 type CreateUserBalanceDBI interface {
-	CreateUserBalance(userID int) error
+	CreateUserBalance(userID int64) error
 }
 
 type GetUserIDByTokenDBI interface {
@@ -104,6 +104,10 @@ type UpdateOrderStatusDBI interface {
 	UpdateOrderStatus(data DataOrderAccr) error
 }
 
+type CreateUpdateTokenDBI interface {
+	CreateUpdateToken(id int64) (string, error)
+}
+
 type PostgresI interface {
 	RegistrationUserDBI
 	AuthenticationUserDBI
@@ -118,6 +122,7 @@ type PostgresI interface {
 	AddOrderInQueueDBI
 	GetOrdersInQueueDBI
 	UpdateOrderStatusDBI
+	CreateUpdateTokenDBI
 }
 
 // Создание экземпляра адаптера

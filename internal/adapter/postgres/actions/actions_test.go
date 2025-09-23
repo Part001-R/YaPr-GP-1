@@ -31,7 +31,7 @@ func Test_RegisterUser_SUCCESS(t *testing.T) {
 		login     string
 		password  string
 		initMockT func(mock sqlmock.Sqlmock)
-		wantID    int
+		wantID    int64
 	}{
 		{
 			nameTest: "Корректные данные",
@@ -139,7 +139,7 @@ func Test_CreateUserBalance_SUCCESS(t *testing.T) {
 	// Данные для теста
 	testData := []struct {
 		nameTest  string
-		userID    int
+		userID    int64
 		initMockT func(mock sqlmock.Sqlmock)
 	}{
 		{
@@ -181,7 +181,7 @@ func Test_CreateUserBalance_FAULT(t *testing.T) {
 	// Данные для теста
 	testData := []struct {
 		nameTest  string
-		userID    int
+		userID    int64
 		initMockT func(mock sqlmock.Sqlmock)
 		wantErr   string
 	}{

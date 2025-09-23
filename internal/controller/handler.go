@@ -155,7 +155,7 @@ func (c *ControllerT) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Работа
-	err = c.ServAct.RegistrationUser(registerDataRx.Login, registerDataRx.Password)
+	token, err := c.ServAct.RegistrationUser(registerDataRx.Login, registerDataRx.Password)
 	if err != nil {
 
 		logger.Log.Error("Функция сервиса RegistrationUser, вернула ошибку",
@@ -174,7 +174,7 @@ func (c *ControllerT) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ответ
-	if err := UserRegisterLayerTx(w); err != nil {
+	if err := UserRegisterLayerTx(w, token); err != nil {
 		logger.Log.Error("Ошибка при формировании ответа",
 			zap.String("err", err.Error()),
 			zap.String("method", r.Method),

@@ -13,28 +13,34 @@ import (
 // Параметры:
 // login - логин.
 // password - пароль.
-func (a *ActionsT) RegistrationUser(login, password string) error {
+func (a *ActionsT) RegistrationUser(login, password string) (string, error) {
 
 	// Проверка аргументов
 	if login == "" || password == "" {
-		return errors.New("в одном из аргументов пустое значение")
+		return "", errors.New("в одном из аргументов пустое значение")
 	}
 
 	// Логика
 	//
 	// Регистрация пользователя
-	newUserID, err := a.AdptPG.RegisterUser(login, password)
+	userID, err := a.AdptPG.RegisterUser(login, password)
 	if err != nil {
-		return fmt.Errorf("ошибка регистрации пользователя: <%w>", err)
+		return "", fmt.Errorf("ошибка регистрации пользователя: <%w>", err)
+	}
+
+	// Создание токена
+	token, err := a.AdptPG.CreateUpdateToken(userID)
+	if err != nil {
+		return "", fmt.Errorf("ошибка создания токена: <%w>", err)
 	}
 
 	// Создание баланса пользователя
-	if err := a.AdptPG.CreateUserBalance(newUserID); err != nil {
-		return fmt.Errorf("ошибка создания баланса пользователя: <%w>", err)
+	if err := a.AdptPG.CreateUserBalance(userID); err != nil {
+		return "", fmt.Errorf("ошибка создания баланса пользователя: <%w>", err)
 	}
 
 	// Результат
-	return nil
+	return token, nil
 }
 
 // Функция выполняет вызов метода адаптера Postgres с аутентификацией пользователя. Возвращается токен и ошибка.
