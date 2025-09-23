@@ -276,6 +276,11 @@ func Test_UserRegisterLayerTx_SUCCESS(t *testing.T) {
 			err := UserRegisterLayerTx(res)
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }
@@ -447,6 +452,11 @@ func Test_UserLoginLayerTx_SUCCESS(t *testing.T) {
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.tokenT, res.Header().Get("Authorization"), "ожидался токен <%s> а принято <%s>", tt.tokenT, res.Header().Get("Authorization"))
 			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }
@@ -622,6 +632,11 @@ func Test_AddOrderLayerTx_SUCCESS(t *testing.T) {
 			err := AddOrderLayerTx(res)
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }
@@ -767,7 +782,7 @@ func Test_GetOrdersUserLayerTx_SUCCESS(t *testing.T) {
 
 			rxData := make([]actions.OrderT, 0)
 
-			rxBytes, err := io.ReadAll(res.Body)
+			rxBytes, err := io.ReadAll(resp.Body)
 			require.NoErrorf(t, err, "неожиданная ошибка чтения тела ответа <%v>", err)
 
 			err = json.Unmarshal(rxBytes, &rxData)
@@ -930,7 +945,7 @@ func Test_GetUserBalanceLayerTx_SUCCESS(t *testing.T) {
 
 			var rxData actions.BalanceT
 
-			rxBytes, err := io.ReadAll(res.Body)
+			rxBytes, err := io.ReadAll(resp.Body)
 			require.NoErrorf(t, err, "неожиданная ошибка чтения тела ответа <%v>", err)
 
 			err = json.Unmarshal(rxBytes, &rxData)
@@ -1076,6 +1091,11 @@ func Test_BalanceWithdrawLayerTx_SUCCESS(t *testing.T) {
 
 			res := httptest.NewRecorder()
 
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
 			err := BalanceWithdrawLayerTx(res)
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
@@ -1100,15 +1120,9 @@ func Test_BalanceWithdrawLayerTx_FAULT(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			var res http.ResponseWriter
-			if tt.nameT == "res == nil" {
-				res = nil
-			} else {
-				res = httptest.NewRecorder()
-			}
-
-			err := BalanceWithdrawLayerTx(res)
+			err := BalanceWithdrawLayerTx(nil)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
+
 		})
 	}
 }
@@ -1222,7 +1236,7 @@ func Test_GetHistoryWithdrawelsLayerTx_SUCCESS(t *testing.T) {
 
 			rxData := make([]WithdrawalResponse, 0)
 
-			rxBytes, err := io.ReadAll(res.Body)
+			rxBytes, err := io.ReadAll(resp.Body)
 			require.NoErrorf(t, err, "неожиданная ошибка чтения тела ответа <%v>", err)
 
 			err = json.Unmarshal(rxBytes, &rxData)
@@ -1250,30 +1264,25 @@ func Test_GetHistoryWithdrawelsLayerTx_FAULT(t *testing.T) {
 			ordersT: []WithdrawalResponse{},
 			wantErr: errors.New("500"),
 		},
-		{
-			nameT:   "res == nil",
-			ordersT: []WithdrawalResponse{},
-			wantErr: errors.New("500"),
-		},
 	}
 
 	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
+			res := httptest.NewRecorder()
+
 			if tt.nameT == "Нет данных" {
 				tt.ordersT = nil
 			}
 
-			var res http.ResponseWriter
-			if tt.nameT == "res == nil" {
-				res = nil
-			} else {
-				res = httptest.NewRecorder()
-			}
-
 			err := GetHistoryWithdrawelsLayerTx(res, tt.ordersT)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }

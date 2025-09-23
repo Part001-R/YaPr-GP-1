@@ -179,7 +179,7 @@ func (a *PostgresT) GetOrdersUser(token string) (orders []OrderT, err error) {
 	}
 
 	// Логика
-	userID, err := getIdByToken(a.PtrDB, token)
+	userID, err := getIDByToken(a.PtrDB, token)
 	if err != nil {
 		return nil, fmt.Errorf("функция getIdByToken вернула ошибку: <%w>", err)
 	}
@@ -230,7 +230,7 @@ func (a *PostgresT) GetUserIDByToken(token string) (int64, error) {
 	}
 
 	// Логика
-	userID, err := getIdByToken(a.PtrDB, token)
+	userID, err := getIDByToken(a.PtrDB, token)
 	if err != nil {
 		return 0, fmt.Errorf("функция getIdByToken вернула ошибку: <%w>", err)
 	}
@@ -313,7 +313,7 @@ func (a *PostgresT) HistoryWithrawals(token string) ([]HistoryWithdrawalsT, erro
 	// Логика
 	//
 	// Получение ID пользователя
-	userID, err := getIdByToken(a.PtrDB, token)
+	userID, err := getIDByToken(a.PtrDB, token)
 	if err != nil {
 		return nil, fmt.Errorf("функция getIdByTokenTx вернула ошибку: <%w>", err)
 	}
@@ -757,7 +757,7 @@ func updateTokenDB(db *sql.DB, id int64) (string, error) {
 //
 // db - указатель на БД.
 // token - токен.
-func getIdByToken(db *sql.DB, token string) (int64, error) {
+func getIDByToken(db *sql.DB, token string) (int64, error) {
 
 	// Проверка аргументов
 	if db == nil {

@@ -506,19 +506,19 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 	tn := time.Now()
 
 	testsData := []struct {
-		nameTest      string
-		token         string
-		order_numb    string
-		order_status  string
-		order_accrual float64
-		mock          func()
+		nameTest     string
+		token        string
+		orderNumb    string
+		orderStatus  string
+		orderAccrual float64
+		mock         func()
 	}{
 		{
-			nameTest:      "Успешное чтение",
-			token:         "12345",
-			order_numb:    "123",
-			order_status:  "PROCESSED",
-			order_accrual: 100.0,
+			nameTest:     "Успешное чтение",
+			token:        "12345",
+			orderNumb:    "123",
+			orderStatus:  "PROCESSED",
+			orderAccrual: 100.0,
 			mock: func() {
 
 				// userID по токену
@@ -543,9 +543,9 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 
 			result, err := adptPG.GetOrdersUser(tt.token)
 			require.NoErrorf(t, err, "ошибка: <%v>", err)
-			assert.Equalf(t, tt.order_numb, result[0].Number, "ожидался номер <%s> а принят <%s>", tt.order_numb, result[0].Number)
-			assert.Equalf(t, tt.order_status, result[0].Status, "ожидался статус <%s> а принят <%s>", tt.order_status, result[0].Status)
-			assert.Equalf(t, tt.order_accrual, result[0].Accrual, "ожидались баллы <%s> а принято <%s>", tt.order_accrual, result[0].Accrual)
+			assert.Equalf(t, tt.orderNumb, result[0].Number, "ожидался номер <%s> а принят <%s>", tt.orderNumb, result[0].Number)
+			assert.Equalf(t, tt.orderStatus, result[0].Status, "ожидался статус <%s> а принят <%s>", tt.orderStatus, result[0].Status)
+			assert.Equalf(t, tt.orderAccrual, result[0].Accrual, "ожидались баллы <%s> а принято <%s>", tt.orderAccrual, result[0].Accrual)
 
 			strTN := tn.Format("2006-01-02T15:04:05-07:00")
 			assert.Equalf(t, strTN, result[0].UploadedAt, "ожидалось время <%s> а принято <%s>", strTN, result[0].UploadedAt)
