@@ -273,14 +273,17 @@ func Test_UserRegisterLayerTx_SUCCESS(t *testing.T) {
 		t.Run(tt.nameT, func(t *testing.T) {
 
 			res := httptest.NewRecorder()
+
 			err := UserRegisterLayerTx(res)
-			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
-			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
+
+			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
+			assert.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
 		})
 	}
 }
@@ -449,14 +452,16 @@ func Test_UserLoginLayerTx_SUCCESS(t *testing.T) {
 			res := httptest.NewRecorder()
 
 			err := UserLoginLayerTx(res, tt.tokenT)
-			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
-			assert.Equalf(t, tt.tokenT, res.Header().Get("Authorization"), "ожидался токен <%s> а принято <%s>", tt.tokenT, res.Header().Get("Authorization"))
-			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
+
+			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
+			assert.Equalf(t, tt.tokenT, res.Header().Get("Authorization"), "ожидался токен <%s> а принято <%s>", tt.tokenT, res.Header().Get("Authorization"))
+			assert.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
 		})
 	}
 }
@@ -630,13 +635,15 @@ func Test_AddOrderLayerTx_SUCCESS(t *testing.T) {
 			res := httptest.NewRecorder()
 
 			err := AddOrderLayerTx(res)
-			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
-			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
+
+			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
+			assert.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
 		})
 	}
 }
@@ -771,15 +778,16 @@ func Test_GetOrdersUserLayerTx_SUCCESS(t *testing.T) {
 			res := httptest.NewRecorder()
 
 			err := GetOrdersUserLayerTx(res, tt.ordersT)
-			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
-			require.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
-			// Чтение тела ответа
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 
+			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
+			require.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
+			// Чтение тела ответа
 			rxData := make([]actions.OrderT, 0)
 
 			rxBytes, err := io.ReadAll(resp.Body)
@@ -934,15 +942,16 @@ func Test_GetUserBalanceLayerTx_SUCCESS(t *testing.T) {
 			res := httptest.NewRecorder()
 
 			err := GetUserBalanceLayerTx(res, tt.balanceT)
-			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
-			require.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
-			// Чтение тела ответа
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 
+			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
+			require.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
+			// Чтение тела ответа
 			var rxData actions.BalanceT
 
 			rxBytes, err := io.ReadAll(resp.Body)
@@ -1091,14 +1100,15 @@ func Test_BalanceWithdrawLayerTx_SUCCESS(t *testing.T) {
 
 			res := httptest.NewRecorder()
 
+			err := BalanceWithdrawLayerTx(res)
+
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 
-			err := BalanceWithdrawLayerTx(res)
 			require.Equalf(t, tt.wantErr, err, "ожидалось <%v> а принято <%v>", tt.wantErr, err)
-			assert.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
+			assert.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
 		})
 	}
 }
@@ -1225,15 +1235,16 @@ func Test_GetHistoryWithdrawelsLayerTx_SUCCESS(t *testing.T) {
 			res := httptest.NewRecorder()
 
 			err := GetHistoryWithdrawelsLayerTx(res, tt.ordersT)
-			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
-			require.Equalf(t, tt.wantStatus, res.Result().StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, res.Result().StatusCode)
 
-			// Чтение тела ответа
 			resp := res.Result()
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 
+			require.NoErrorf(t, err, "неожиданная ошибка запроса <%v>", err)
+			require.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
+
+			// Чтение тела ответа
 			rxData := make([]WithdrawalResponse, 0)
 
 			rxBytes, err := io.ReadAll(resp.Body)
