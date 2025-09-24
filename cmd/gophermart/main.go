@@ -8,10 +8,19 @@ import (
 
 func main() {
 
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Log.Error("Паника в приложении",
+				zap.Any("reason", r),
+			)
+		}
+	}()
+
 	err := service.App()
 	if err != nil {
 		logger.Log.Error("Работа приложения остановлена",
 			zap.Error(err),
 		)
 	}
+
 }

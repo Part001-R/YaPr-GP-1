@@ -293,14 +293,14 @@ func runOrdersQueue(chTx chan string, adptPG actionspg.PostgresI, chAccrErr chan
 //
 // Параметры:
 //
-// er - исходная шибка
-func isConnectionRefused(er error) bool {
+// err - исходная шибка
+func isConnectionRefused(err error) bool {
 
-	if er == nil {
+	if err == nil {
 		return false
 	}
 
-	errParts := strings.Split(er.Error(), ":")
+	errParts := strings.Split(err.Error(), ":")
 
 	if len(errParts) > 0 {
 		last := strings.TrimSpace(errParts[len(errParts)-1])
@@ -317,14 +317,14 @@ func isConnectionRefused(er error) bool {
 //
 // Параметры:
 //
-// er - исходная шибка
-func isResponceTimeout(er error) bool {
+// err - исходная шибка
+func isResponceTimeout(err error) bool {
 
-	if er == nil {
+	if err == nil {
 		return false
 	}
 
-	baseErr := errors.Unwrap(er)
+	baseErr := errors.Unwrap(err)
 
 	return strings.Contains(baseErr.Error(), ErrTimeoutResponceAccrual)
 }
@@ -386,6 +386,11 @@ func processingOrder(params *ProcessingOrderT) error {
 // params - параметры.
 func addOrderInQueue(params *ProcessingOrderT) error {
 
+	// Проверка аргументов
+	if params == nil {
+		return errors.New("в аргументе params, нет указателя")
+	}
+
 	if err := params.adptPG.AddOrderInQueue(params.newOrdNumb); err != nil {
 
 		errBase := errors.Unwrap(err)
@@ -404,17 +409,22 @@ func addOrderInQueue(params *ProcessingOrderT) error {
 //
 // er - обрабатываемая ошибка.
 // params - параметры.
-func checkNetErrors(er error) (bool, error) {
+func checkNetErrors(err error) (bool, error) {
+
+	// Проверка аргументов
+	if err == nil {
+		return false, fmt.Errorf("в аргументе err нет ошибки")
+	}
 
 	do := false
 
 	// Отсутствие подключения к Accrual
-	if isConnectionRefused(er) {
+	if isConnectionRefused(err) {
 		logger.Log.Error("Нет подключения к Accrual. Заказ передан в очередь.")
 		do = true
 	}
 	// Время ожидания ответа истекло
-	if isResponceTimeout(er) {
+	if isResponceTimeout(err) {
 		logger.Log.Error("Превышено время ответа от Accrual. Заказ передан в очередь.")
 		do = true
 	}
@@ -430,9 +440,17 @@ func checkNetErrors(er error) (bool, error) {
 // params - параметры.
 func checkOtherErrors(err error, params *ProcessingOrderT) (bool, error) {
 
+	// Проверка аргументов
+	if err == nil {
+		return false, fmt.Errorf("в аргументе err нет ошибки")
+	}
+	if params == nil {
+		return false, fmt.Errorf("в аргументе params нет указателя")
+	}
+
+	// Логика
 	do := false
 
-	// Проверка остальных ошибок
 	switch err.Error() {
 	case ErrAccrNotExistOrder: // заказ не зарегистрирован в системе расчёта
 		logger.Log.Error("Заказ не зарегистрирован в системе расчёта",
