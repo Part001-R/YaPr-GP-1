@@ -12,6 +12,7 @@ func main() {
 		if r := recover(); r != nil {
 			logger.Log.Error("Паника в приложении",
 				zap.Any("reason", r),
+				zap.Stack("stacktrace"),
 			)
 		}
 	}()
