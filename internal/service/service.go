@@ -326,6 +326,10 @@ func isResponceTimeout(err error) bool {
 
 	baseErr := errors.Unwrap(err)
 
+	if baseErr == nil {
+		return false
+	}
+
 	return strings.Contains(baseErr.Error(), ErrTimeoutResponceAccrual)
 }
 
