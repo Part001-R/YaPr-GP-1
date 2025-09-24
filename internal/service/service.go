@@ -283,8 +283,8 @@ func runOrdersQueue(chTx chan string, adptPG actionspg.PostgresI, chAccrErr chan
 		}
 
 		// Очередь передана
-		// Ожидание 60 секунд
-		time.Sleep(60 * time.Second)
+		// Ожидание 10 секунд
+		time.Sleep(10 * time.Second)
 	}
 
 }
@@ -481,9 +481,9 @@ func checkOtherErrors(err error, params *ProcessingOrderT) (bool, error) {
 // params - параметры.
 func checkErrors(err error, params *ProcessingOrderT) error {
 
-	// ПРоверка аргументов
-	if err != nil {
-		return fmt.Errorf("в аргументе err нет указателя")
+	// Проверка аргументов
+	if err == nil {
+		return fmt.Errorf("в аргументе err нет ошибки")
 	}
 	if params != nil {
 		return fmt.Errorf("в аргументе params нет указателя на ошибку")
