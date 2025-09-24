@@ -485,8 +485,8 @@ func checkErrors(err error, params *ProcessingOrderT) error {
 	if err == nil {
 		return fmt.Errorf("в аргументе err нет ошибки")
 	}
-	if params != nil {
-		return fmt.Errorf("в аргументе params нет указателя на ошибку")
+	if params == nil {
+		return fmt.Errorf("в аргументе params нет указателя")
 	}
 
 	// Логика
