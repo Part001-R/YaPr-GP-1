@@ -10,6 +10,7 @@ import (
 
 const (
 	errUserExist          = "pq: duplicate key value violates unique constraint \"users_user_name_key\""
+	errWithdrOrderExist   = "pq: duplicate key value violates unique constraint \"withdrawals_user_id_order_number_key\""
 	errPairLoginPassword  = "нет соответствия пары логи-пароль"
 	errUserNotFound       = "пользователь не найден"
 	errOrderExist         = "номер заказа уже был загружен этим пользователем"
@@ -25,18 +26,18 @@ const (
 )
 
 // Для приёма данных регистрации
-type RegisterRxT struct {
+type RegisterRx struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
 // Для приёма данных логина
-type LoginRxT struct {
+type LoginRx struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
-type MtxT struct {
+type Mtx struct {
 	Register              sync.Mutex
 	Login                 sync.Mutex
 	AddOrder              sync.Mutex
@@ -46,10 +47,9 @@ type MtxT struct {
 	GetHistoryWithdrawals sync.Mutex
 }
 
-type ControllerT struct {
+type ControllerConf struct {
 	Flags   flags.FlagsT
-	ServAct actions.ActionsI
-	Mtx     MtxT
+	ServAct actions.Actions
 }
 
 // Для истории выводов
@@ -60,24 +60,15 @@ type WithdrawalResponse struct {
 }
 
 // Для истории выводов (локальная копия)
-type HistoryWithdrawalsT struct {
+type HistoryWithdrawals struct {
 	Order       string
 	Sum         int64
 	ProcessedAt time.Time
 }
 
-func NewInstController(fl flags.FlagsT, servAct actions.ActionsI) *ControllerT {
-	return &ControllerT{
+func NewInstController(fl flags.FlagsT, servAct actions.Actions) *ControllerConf {
+	return &ControllerConf{
 		Flags:   fl,
 		ServAct: servAct,
-		Mtx: MtxT{
-			Register:              sync.Mutex{},
-			Login:                 sync.Mutex{},
-			AddOrder:              sync.Mutex{},
-			GetOrdersUser:         sync.Mutex{},
-			GetUserBalance:        sync.Mutex{},
-			BalanceWithdraw:       sync.Mutex{},
-			GetHistoryWithdrawals: sync.Mutex{},
-		},
 	}
 }

@@ -197,7 +197,7 @@ func Test_CheckOtherErrors(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameTest, func(t *testing.T) {
 
-			params := &ProcessingOrderT{
+			params := &ProcessingOrder{
 				tmr:                   &time.Timer{},
 				newOrdNumb:            "12345",
 				needStoreByFreq:       false,

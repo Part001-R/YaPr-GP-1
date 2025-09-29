@@ -6,6 +6,9 @@ import (
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/Part001-R/YaPr-GP-1/internal/utils/logger"
+	"go.uber.org/zap"
 )
 
 // Функция выполняет вызов метода адаптера Postgres с регистрацией пользователя. Возвращается токен и ошибка.
@@ -13,7 +16,7 @@ import (
 // Параметры:
 // login - логин.
 // password - пароль.
-func (a *ActionsT) RegistrationUser(login, password string) (string, error) {
+func (a *ActionsConf) RegistrationUser(login, password string) (token string, err error) {
 
 	// Проверка аргументов
 	if login == "" || password == "" {
@@ -22,21 +25,55 @@ func (a *ActionsT) RegistrationUser(login, password string) (string, error) {
 
 	// Логика
 	//
-	// Регистрация пользователя
-	userID, err := a.AdptPG.RegisterUser(login, password)
+	// Начало транзакции
+	tx, err := a.AdptPG.BeginTx()
 	if err != nil {
+		return "", fmt.Errorf("ошибка начала транзакции: <%w>", err)
+	}
+
+	defer func() {
+		if err != nil {
+			rbErr := tx.Rollback()
+			if rbErr != nil {
+				err = fmt.Errorf("ошибка tx.Rollback при регистрации пользователя: <%w>", rbErr)
+			}
+		}
+	}()
+
+	// Регистрация пользователя
+	userID, err := a.AdptPG.RegisterUser(tx, login, password)
+	if err != nil {
+		logger.Log.Error("ошибка регистрации пользователя",
+			zap.String("err", err.Error()),
+		)
 		return "", fmt.Errorf("ошибка регистрации пользователя: <%w>", err)
 	}
 
 	// Создание токена
-	token, err := a.AdptPG.CreateUpdateToken(userID)
+	token, err = a.AdptPG.CreateUpdateToken(tx, userID)
 	if err != nil {
+		logger.Log.Error("ошибка создания токена",
+			zap.String("err", err.Error()),
+		)
 		return "", fmt.Errorf("ошибка создания токена: <%w>", err)
 	}
 
 	// Создание баланса пользователя
-	if err := a.AdptPG.CreateUserBalance(userID); err != nil {
+	err = a.AdptPG.CreateUserBalance(tx, userID)
+	if err != nil {
+		logger.Log.Error("ошибка создания баланса пользователя",
+			zap.String("err", err.Error()),
+		)
 		return "", fmt.Errorf("ошибка создания баланса пользователя: <%w>", err)
+	}
+
+	// Подтверждение изменений
+	err = a.AdptPG.CommitTx(tx)
+	if err != nil {
+		logger.Log.Error("ошибка подтверждения транзакции",
+			zap.String("err", err.Error()),
+		)
+		return "", fmt.Errorf("ошибка подтверждения транзакции: <%w>", err)
 	}
 
 	// Результат
@@ -48,7 +85,7 @@ func (a *ActionsT) RegistrationUser(login, password string) (string, error) {
 // Параметры:
 // login - логин.
 // password - пароль.
-func (a *ActionsT) AuthenticationUser(login, password string) (string, error) {
+func (a *ActionsConf) AuthenticationUser(login, password string) (string, error) {
 
 	// Проверка аргументов
 	if login == "" || password == "" {
@@ -70,7 +107,7 @@ func (a *ActionsT) AuthenticationUser(login, password string) (string, error) {
 // Параметры:
 // token - токен.
 // order - заказ.
-func (a *ActionsT) AddOrder(token, order string) error {
+func (a *ActionsConf) AddOrder(token, order string) error {
 
 	// Проверка аргументов
 	if token == "" {
@@ -109,6 +146,7 @@ func (a *ActionsT) AddOrder(token, order string) error {
 	select {
 	case a.ChAccrNewOrder <- order:
 	case <-time.After(3 * time.Second):
+		logger.Log.Error("отправленные данные в канал не прочитаны за отведённое время")
 		return errors.New("отправленные данные в канал не прочитаны за отведённое время")
 	}
 
@@ -121,7 +159,7 @@ func (a *ActionsT) AddOrder(token, order string) error {
 // Параметры:
 //
 // token - токен.
-func (a *ActionsT) GetOrdersUser(token string) ([]OrderT, error) {
+func (a *ActionsConf) GetOrdersUser(token string) ([]Order, error) {
 
 	// Проверка аргументов
 	if token == "" {
@@ -138,8 +176,8 @@ func (a *ActionsT) GetOrdersUser(token string) ([]OrderT, error) {
 	}
 
 	// Перенос принятых данных
-	ordersTx := make([]OrderT, 0)
-	var el OrderT
+	ordersTx := make([]Order, 0)
+	var el Order
 	for _, v := range ordersRx {
 		el.Accrual = v.Accrual
 		el.Number = v.Number
@@ -158,11 +196,11 @@ func (a *ActionsT) GetOrdersUser(token string) ([]OrderT, error) {
 // Параметры:
 //
 // token - токен.
-func (a *ActionsT) GetUserBalance(token string) (BalanceT, error) {
+func (a *ActionsConf) GetUserBalance(token string) (Balance, error) {
 
 	// Проверка аргументов
 	if token == "" {
-		return BalanceT{}, errors.New("в аргументе token нет содержимого")
+		return Balance{}, errors.New("в аргументе token нет содержимого")
 	}
 
 	// Логика
@@ -171,17 +209,17 @@ func (a *ActionsT) GetUserBalance(token string) (BalanceT, error) {
 	// Проверяется аутентификация и авторизация.
 	userID, err := a.AdptPG.GetUserIDByToken(token)
 	if err != nil {
-		return BalanceT{}, fmt.Errorf("функция GetUserIDByToken, адаптера AdptPG, вернула ошибку: <%w>", err)
+		return Balance{}, fmt.Errorf("функция GetUserIDByToken, адаптера AdptPG, вернула ошибку: <%w>", err)
 	}
 
 	// Получение текущего баланса пользоателя.
 	balanceRx, err := a.AdptPG.GetUserBalance(userID)
 	if err != nil {
-		return BalanceT{}, fmt.Errorf("функция GetUserBalance, адаптера AdptPG, вернула ошибку: <%w>", err)
+		return Balance{}, fmt.Errorf("функция GetUserBalance, адаптера AdptPG, вернула ошибку: <%w>", err)
 	}
 
 	// Перенос принятых данных
-	var curBalance BalanceT
+	var curBalance Balance
 	curBalance.Current = balanceRx.Current
 	curBalance.Withdrawn = balanceRx.Withdrawn
 
@@ -194,7 +232,7 @@ func (a *ActionsT) GetUserBalance(token string) (BalanceT, error) {
 // Параметры:
 //
 // token - токен.
-func (a *ActionsT) BalanceWithdraw(token string, dataRx BalanceWithdrawT) error {
+func (a *ActionsConf) BalanceWithdraw(token string, dataRx BalanceWithdraw) (err error) {
 
 	// Проверка аргументов
 	if token == "" {
@@ -240,14 +278,47 @@ func (a *ActionsT) BalanceWithdraw(token string, dataRx BalanceWithdrawT) error 
 		return errors.New("на счету недостаточно средств")
 	}
 
+	// Транзакция
+	tx, err := a.AdptPG.BeginTx()
+	if err != nil {
+		return fmt.Errorf("функция BeginTx, адаптера AdptPG, вернула ошибку: <%w>", err)
+	}
+	defer func() {
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				logger.Log.Error("Ошибка tx.Rollback",
+					zap.String("err", rbErr.Error()),
+				)
+				err = rbErr
+			}
+		}
+	}()
+
 	// Списание баллов
-	if err := a.AdptPG.DoWithdraw(userID, dataRx.Sum, curBalance, dataRx.Order); err != nil {
+	err = a.AdptPG.DoWithdrawTx(tx, userID, dataRx.Sum, curBalance, dataRx.Order)
+	if err != nil {
+		logger.Log.Error("Функция DoWithdraw вернула ошибку",
+			zap.String("err", err.Error()),
+		)
 		return fmt.Errorf("функция DoWithdraw вернула ошибку: <%w>", err)
 	}
 
 	// Создание заказа
-	if err := a.AdptPG.AddOrder(dataRx.Order, userID); err != nil {
+	err = a.AdptPG.AddOrderTx(tx, dataRx.Order, userID)
+	if err != nil {
+		logger.Log.Error("Функция AddOrder, адаптера AdptPG, вернула ошибку",
+			zap.String("err", err.Error()),
+		)
 		return fmt.Errorf("функция AddOrder, адаптера AdptPG, вернула ошибку: <%w>", err)
+	}
+
+	// Подтверждение транзакции
+	err = a.AdptPG.CommitTx(tx)
+	if err != nil {
+		logger.Log.Error("Функция CommitTx, адаптера AdptPG, вернула ошибку",
+			zap.String("err", err.Error()),
+		)
+		return fmt.Errorf("функция CommitTx, адаптера AdptPG, вернула ошибку: <%w>", err)
 	}
 
 	// Передача номера заказа в канал, для последующего взаимодействия с Accrual.
@@ -256,6 +327,7 @@ func (a *ActionsT) BalanceWithdraw(token string, dataRx BalanceWithdrawT) error 
 	select {
 	case a.ChAccrNewOrder <- dataRx.Order:
 	case <-time.After(3 * time.Second):
+		logger.Log.Error("отправленные данные в канал не прочитаны за отведённое время")
 		return errors.New("отправленные данные в канал не прочитаны за отведённое время")
 	}
 
@@ -269,7 +341,7 @@ func (a *ActionsT) BalanceWithdraw(token string, dataRx BalanceWithdrawT) error 
 // ch - каналы для взаимодействия с go рутиной.
 // addrAccr - адрес Accrual сервиса.
 // chErr - канал возврата ошибки.
-func (a *ActionsT) RunQueueAccrual(ch ChannelsAccrualT, addrAccr string, chErr chan error) {
+func (a *ActionsConf) RunQueueAccrual(ch ChannelsAccrual, addrAccr string, chErr chan error) {
 
 	// Проверка аргументов
 	if chErr == nil {
@@ -295,7 +367,7 @@ func (a *ActionsT) RunQueueAccrual(ch ChannelsAccrualT, addrAccr string, chErr c
 // Параметры:
 //
 // token - токен пользователя.
-func (a *ActionsT) HistoryWithdrawels(token string) ([]HistoryWithdrawalsT, error) {
+func (a *ActionsConf) HistoryWithdrawels(token string) ([]HistoryWithdrawals, error) {
 
 	// Проверка аргументов
 	if token == "" {
@@ -309,10 +381,10 @@ func (a *ActionsT) HistoryWithdrawels(token string) ([]HistoryWithdrawalsT, erro
 	}
 
 	// Перенос данных
-	copyHistory := make([]HistoryWithdrawalsT, 0)
+	copyHistory := make([]HistoryWithdrawals, 0)
 
 	for _, v := range history {
-		var el HistoryWithdrawalsT
+		var el HistoryWithdrawals
 		el.Order = v.Order
 		el.Sum = v.Sum
 		el.ProcessedAt = v.ProcessedAt

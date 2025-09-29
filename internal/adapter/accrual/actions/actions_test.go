@@ -19,7 +19,7 @@ func Test_GetOrderInfo_SUCCESS(t *testing.T) {
 	// Сервер
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		dataTx := OrderDataRxT{
+		dataTx := OrderDataRx{
 			Order:   "<12345>",
 			Status:  "PROCESSED",
 			Accrual: 500,
@@ -40,13 +40,13 @@ func Test_GetOrderInfo_SUCCESS(t *testing.T) {
 	tests := []struct {
 		name      string
 		order     string
-		wantData  OrderDataRxT
+		wantData  OrderDataRx
 		wantError error
 	}{
 		{
 			name:  "Successful response",
 			order: "12345",
-			wantData: OrderDataRxT{
+			wantData: OrderDataRx{
 				Order:   "12345",
 				Status:  "PROCESSED",
 				Accrual: 500,
@@ -79,7 +79,7 @@ func Test_GetOrderInfo_FAULT(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/orders/12345": // Успешный ответ
 
-			dataTx := OrderDataRxT{
+			dataTx := OrderDataRx{
 				Order:   "<12345>",
 				Status:  "PROCESSED",
 				Accrual: 500,

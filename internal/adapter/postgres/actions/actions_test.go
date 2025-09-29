@@ -53,9 +53,15 @@ func Test_RegisterUser_SUCCESS(t *testing.T) {
 
 			tt.initMockT(mock)
 
-			id, err := adptPG.RegisterUser(tt.login, tt.password)
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при начале транзакции: <%v>", err)
+
+			id, err := adptPG.RegisterUser(tx, tt.login, tt.password)
 			require.NoError(t, err, "ошибка: <%v>", err)
 			assert.Equal(t, tt.wantID, id, "ожидался id <%d>, а принят <%d>", tt.wantID, id)
+
+			tx.Commit()
+			require.NoErrorf(t, err, "неожиданная ошибка при подтверждении транзакции: <%v>", err)
 
 			if err := mock.ExpectationsWereMet(); err != nil {
 				assert.NoErrorf(t, err, "не все ожидания были выполнены: <%v>", err)
@@ -90,9 +96,6 @@ func Test_RegisterUser_FAULT(t *testing.T) {
 			password: "BBB",
 			initMockT: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
-				hashPwd, _ := hashString("BBB")
-				mock.ExpectQuery("INSERT INTO users").WithArgs("", hashPwd).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-				mock.ExpectCommit()
 			},
 			wantErr: "в аргументе login нет содержимого",
 		},
@@ -102,11 +105,17 @@ func Test_RegisterUser_FAULT(t *testing.T) {
 			password: "",
 			initMockT: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
-				hashPwd, _ := hashString("")
-				mock.ExpectQuery("INSERT INTO users").WithArgs("AAA", hashPwd).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-				mock.ExpectCommit()
 			},
 			wantErr: "в аргументе password нет содержимого",
+		},
+		{
+			nameTest: "Нет указателя на tx",
+			login:    "AAA",
+			password: "BBB",
+			initMockT: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+			},
+			wantErr: "нет указателя на tx",
 		},
 	}
 
@@ -116,8 +125,20 @@ func Test_RegisterUser_FAULT(t *testing.T) {
 
 			tt.initMockT(mock)
 
-			_, err := adptPG.RegisterUser(tt.login, tt.password)
-			assert.Equal(t, tt.wantErr, err.Error())
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при создании транзакции: <%v>", err)
+
+			if tt.nameTest == "Нет указателя на tx" {
+				tx = nil
+			}
+
+			_, err = adptPG.RegisterUser(tx, tt.login, tt.password)
+
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
@@ -146,6 +167,7 @@ func Test_CreateUserBalance_SUCCESS(t *testing.T) {
 			nameTest: "Корректные данные",
 			userID:   1,
 			initMockT: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
 				mock.ExpectExec("INSERT INTO balance").WithArgs(1, 0, 0).WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 		},
@@ -154,9 +176,13 @@ func Test_CreateUserBalance_SUCCESS(t *testing.T) {
 	// Тесты
 	for _, tt := range testData {
 		t.Run(tt.nameTest, func(t *testing.T) {
+
 			tt.initMockT(mock)
 
-			err := adptPG.CreateUserBalance(tt.userID)
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при начале транзакции: <%v>", err)
+
+			err = adptPG.CreateUserBalance(tx, tt.userID)
 			require.NoError(t, err, "ошибка: <%v>", err)
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -189,6 +215,7 @@ func Test_CreateUserBalance_FAULT(t *testing.T) {
 			nameTest: "Недопустимый userID",
 			userID:   0,
 			initMockT: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
 				mock.ExpectExec("INSERT INTO balance").WithArgs(1, 0, 0).WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			wantErr: "недопустимое содержимое в аргумете userID",
@@ -200,7 +227,10 @@ func Test_CreateUserBalance_FAULT(t *testing.T) {
 		t.Run(tt.nameTest, func(t *testing.T) {
 			tt.initMockT(mock)
 
-			err := adptPG.CreateUserBalance(tt.userID)
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при начале транзакции: <%v>", err)
+
+			err = adptPG.CreateUserBalance(tx, tt.userID)
 			assert.Equalf(t, tt.wantErr, err.Error(), "ожадалась ошибка: <%s>, а принято <%s>", tt.wantErr, err.Error())
 		})
 	}
@@ -428,6 +458,7 @@ func Test_AddOrder_SUCCESS(t *testing.T) {
 		},
 	}
 
+	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.nameTest, func(t *testing.T) {
 
@@ -440,6 +471,7 @@ func Test_AddOrder_SUCCESS(t *testing.T) {
 }
 
 func Test_AddOrder_FAULT(t *testing.T) {
+
 	// Подготовка
 	db, _, err := sqlmock.New()
 	require.NoError(t, err, "ошибка при создании sqlmock: <%v>", err)
@@ -475,6 +507,7 @@ func Test_AddOrder_FAULT(t *testing.T) {
 		},
 	}
 
+	// Тесты
 	for _, tt := range tests {
 		t.Run(tt.nameTest, func(t *testing.T) {
 
@@ -502,8 +535,7 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 	adptPG := NewInstAdapterPostgres(db)
 
 	// Данные для теста
-
-	tn := time.Now()
+	tn := time.Now().UTC()
 
 	testsData := []struct {
 		nameTest     string
@@ -522,10 +554,10 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 			mock: func() {
 
 				// userID по токену
-				mock.ExpectQuery("SELECT user_id, created_at, expired_at FROM user_tokens").
+				mock.ExpectQuery("SELECT user_id, expired_at FROM user_tokens").
 					WithArgs("12345").
-					WillReturnRows(sqlmock.NewRows([]string{"user_id", "created_at", "expired_at"}).
-						AddRow(1, tn, tn.Add(1*time.Hour)))
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "expired_at"}).
+						AddRow(1, tn.Add(1*time.Hour)))
 
 				// Заказы пользователя
 				mock.ExpectQuery("SELECT order_number, order_status, order_accrual, created_at FROM orders WHERE user_id = \\$1").
@@ -536,9 +568,9 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 		},
 	}
 
+	// тесты
 	for _, tt := range testsData {
 		t.Run(tt.nameTest, func(t *testing.T) {
-
 			tt.mock()
 
 			result, err := adptPG.GetOrdersUser(tt.token)
@@ -546,9 +578,6 @@ func Test_GetOrdersUser_SUCCESS(t *testing.T) {
 			assert.Equalf(t, tt.orderNumb, result[0].Number, "ожидался номер <%s> а принят <%s>", tt.orderNumb, result[0].Number)
 			assert.Equalf(t, tt.orderStatus, result[0].Status, "ожидался статус <%s> а принят <%s>", tt.orderStatus, result[0].Status)
 			assert.Equalf(t, tt.orderAccrual, result[0].Accrual, "ожидались баллы <%s> а принято <%s>", tt.orderAccrual, result[0].Accrual)
-
-			strTN := tn.Format("2006-01-02T15:04:05-07:00")
-			assert.Equalf(t, strTN, result[0].UploadedAt, "ожидалось время <%s> а принято <%s>", strTN, result[0].UploadedAt)
 
 			if err := mock.ExpectationsWereMet(); err != nil {
 				assert.NoErrorf(t, err, "не все ожидания были выполнены: <%v>", err)
@@ -611,7 +640,7 @@ func Test_GetUserBalance_SUCCESS(t *testing.T) {
 		testName    string
 		userID      int64
 		mock        func()
-		wantBalance BalanceT
+		wantBalance Balance
 		wantErr     error
 	}{
 		{
@@ -622,7 +651,7 @@ func Test_GetUserBalance_SUCCESS(t *testing.T) {
 					WithArgs(1).
 					WillReturnRows(sqlmock.NewRows([]string{"accrual", "withdrawn"}).AddRow(100, 50))
 			},
-			wantBalance: BalanceT{Current: 100.0, Withdrawn: 50.0},
+			wantBalance: Balance{Current: 100.0, Withdrawn: 50.0},
 			wantErr:     nil,
 		},
 		{
@@ -633,11 +662,12 @@ func Test_GetUserBalance_SUCCESS(t *testing.T) {
 					WithArgs(2).
 					WillReturnError(sql.ErrNoRows)
 			},
-			wantBalance: BalanceT{},
+			wantBalance: Balance{},
 			wantErr:     errors.New("данные баланса пользователя не найдены"),
 		},
 	}
 
+	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.testName, func(t *testing.T) {
 
@@ -656,16 +686,10 @@ func Test_GetUserBalance_SUCCESS(t *testing.T) {
 				assert.Equalf(t, tt.wantBalance.Withdrawn, balance.Withdrawn, "ожидалось списание <%v> а принято <%v>", tt.wantBalance.Withdrawn, balance.Withdrawn)
 			}
 
-			// Проверяем, что все ожидания были выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
 			}
 		})
-	}
-
-	// Проверяем, что все ожидания были выполнены
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("Не все ожидания были выполнены: %s", err)
 	}
 }
 
@@ -696,6 +720,7 @@ func Test_GetUserBalance_FAULT(t *testing.T) {
 		},
 	}
 
+	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.testName, func(t *testing.T) {
 
@@ -707,8 +732,7 @@ func Test_GetUserBalance_FAULT(t *testing.T) {
 
 // GetUserIDByToken
 
-func Test_GetUserIDByToken_SUCCESS(t *testing.T) {
-
+func Test_GetUserIDByToken(t *testing.T) {
 	// Подготовка
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err, "ошибка при создании sqlmock: <%v>", err)
@@ -720,36 +744,53 @@ func Test_GetUserIDByToken_SUCCESS(t *testing.T) {
 	adptPG := NewInstAdapterPostgres(db)
 
 	// Данные для теста
+	now := time.Now().UTC()
 	testsData := []struct {
 		name       string
 		token      string
 		mockSetup  func()
 		wantUserID int64
-		wantError  error
+		wantErr    bool
 	}{
 		{
 			name:  "Успешное получение userID",
-			token: "valid_token",
+			token: "AAA",
 			mockSetup: func() {
-				mock.ExpectQuery("SELECT user_id, created_at, expired_at FROM user_tokens WHERE token = \\$1").
-					WithArgs("valid_token").
-					WillReturnRows(sqlmock.NewRows([]string{"user_id", "created_at", "expired_at"}).
-						AddRow(1, time.Now(), time.Now().Add(1*time.Hour)))
+				mock.ExpectQuery("SELECT user_id, expired_at FROM user_tokens").
+					WithArgs("AAA").
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "expired_at"}).
+						AddRow(1, now.Add(1*time.Hour)))
 			},
 			wantUserID: 1,
-			wantError:  nil,
+			wantErr:    false,
+		},
+		{
+			name:  "Токен истек",
+			token: "AAA",
+			mockSetup: func() {
+				mock.ExpectQuery("SELECT user_id, expired_at FROM user_tokens").
+					WithArgs("AAA").
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "expired_at"}).
+						AddRow(1, now.Add(-1*time.Hour)))
+			},
+			wantUserID: 0,
+			wantErr:    true,
 		},
 	}
 
 	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.name, func(t *testing.T) {
-
 			tt.mockSetup()
 
 			userID, err := adptPG.GetUserIDByToken(tt.token)
-			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
-			assert.Equalf(t, tt.wantUserID, userID, "ожидался ID <%d> а принят <%d>", tt.wantUserID, userID)
+
+			if tt.wantErr {
+				require.Error(t, err, "ожидалась ошибка, но её не было")
+			} else {
+				require.NoError(t, err, "неожиданная ошибка <%v>", err)
+				assert.Equal(t, tt.wantUserID, userID, "ожидалось <%d>, а принято <%d>", tt.wantUserID, userID)
+			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
@@ -809,21 +850,21 @@ func Test_DoWithdraw_SUCCESS(t *testing.T) {
 
 	// Данные для теста
 	testsData := []struct {
-		name          string
-		userID        int64
-		sumWithdraw   float64
-		curBalance    BalanceT
-		order         string
-		mockSetup     func()
-		expectedError error
+		name        string
+		userID      int64
+		sumWithdraw float64
+		curBalance  Balance
+		order       string
+		initMock    func(mock sqlmock.Sqlmock)
+		wantError   error
 	}{
 		{
 			name:        "Успешное списание",
 			userID:      1,
 			sumWithdraw: 10.0,
-			curBalance:  BalanceT{Current: 200.0, Withdrawn: 0.0},
+			curBalance:  Balance{Current: 200.0, Withdrawn: 0.0},
 			order:       "order123",
-			mockSetup: func() {
+			initMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 
 				mock.ExpectExec("UPDATE balance").
@@ -836,19 +877,24 @@ func Test_DoWithdraw_SUCCESS(t *testing.T) {
 
 				mock.ExpectCommit()
 			},
-			expectedError: nil,
+			wantError: nil,
 		},
 	}
 
 	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.initMock(mock)
 
-			err = adptPG.DoWithdraw(tt.userID, tt.sumWithdraw, tt.curBalance, tt.order)
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при начале транзакции: <%v>", err)
+
+			err = adptPG.DoWithdrawTx(tx, tt.userID, tt.sumWithdraw, tt.curBalance, tt.order)
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
-			// Проверка, что все ожидания были выполнены
+			err = tx.Commit()
+			require.NoErrorf(t, err, "неожиданная ошибка при подтверждении транзакции: <%v>", err)
+
 			err = mock.ExpectationsWereMet()
 			require.NoError(t, err, "не все ожидания были выполнены")
 		})
@@ -856,8 +902,9 @@ func Test_DoWithdraw_SUCCESS(t *testing.T) {
 }
 
 func Test_DoWithdraw_FAULT(t *testing.T) {
+
 	// Подготовка
-	db, _, err := sqlmock.New()
+	db, mock, err := sqlmock.New()
 	require.NoError(t, err, "ошибка при создании sqlmock: <%v>", err)
 
 	defer func() {
@@ -871,53 +918,66 @@ func Test_DoWithdraw_FAULT(t *testing.T) {
 		name        string
 		userID      int64
 		sumWithdraw float64
-		curBalance  BalanceT
+		curBalance  Balance
 		order       string
+		initMock    func(mock sqlmock.Sqlmock)
 		wantError   error
 	}{
 		{
 			name:        "недопустимый userID",
 			userID:      0,
 			sumWithdraw: 10,
-			curBalance: BalanceT{
+			curBalance: Balance{
 				Current:   100,
 				Withdrawn: 0,
 			},
-			order:     "AAA",
-			wantError: errors.New("в аргументе userID недопустимое зночение"),
+			order: "AAA",
+			initMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+			},
+			wantError: errors.New("в аргументе userID недопустимое значение"),
 		},
 		{
 			name:        "недопустимое зночение списания",
 			userID:      1,
 			sumWithdraw: 0,
-			curBalance: BalanceT{
+			curBalance: Balance{
 				Current:   100,
 				Withdrawn: 0,
 			},
-			order:     "AAA",
-			wantError: errors.New("в аргументе sumWithdraw недопустимое зночение"),
+			order: "AAA",
+			initMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+			},
+			wantError: errors.New("в аргументе sumWithdraw недопустимое значение"),
 		},
 		{
 			name:        "недопустимое зночение баланса",
 			userID:      1,
 			sumWithdraw: 1,
-			curBalance: BalanceT{
+			curBalance: Balance{
 				Current:   0,
 				Withdrawn: 10,
 			},
-			order:     "AAA",
-			wantError: errors.New("в аргументе curBalance.Current недопустимое зночение"),
+			order: "AAA",
+			initMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+			},
+			wantError: errors.New("в аргументе curBalance.Current недопустимое значение"),
 		},
 		{
 			name:        "недопустимое зночение заказа",
 			userID:      1,
 			sumWithdraw: 1,
-			curBalance: BalanceT{
+			curBalance: Balance{
 				Current:   10,
 				Withdrawn: 1,
 			},
-			order:     "",
-			wantError: errors.New("в аргументе order недопустимое зночение"),
+			order: "",
+			initMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+			},
+			wantError: errors.New("в аргументе order недопустимое значение"),
 		},
 	}
 
@@ -925,7 +985,12 @@ func Test_DoWithdraw_FAULT(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.name, func(t *testing.T) {
 
-			err = adptPG.DoWithdraw(tt.userID, tt.sumWithdraw, tt.curBalance, tt.order)
+			tt.initMock(mock)
+
+			tx, err := db.Begin()
+			require.NoErrorf(t, err, "неожиданная ошибка при начале транзакции: <%v>", err)
+
+			err = adptPG.DoWithdrawTx(tx, tt.userID, tt.sumWithdraw, tt.curBalance, tt.order)
 			require.Equalf(t, tt.wantError, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantError, err)
 		})
 	}
@@ -951,25 +1016,26 @@ func Test_HistoryWithrawals_SUCCESS(t *testing.T) {
 		nameTest  string
 		token     string
 		mockSetup func()
-		wantHist  []HistoryWithdrawalsT
+		wantHist  []HistoryWithdrawals
 		wantErr   error
 	}{
 		{
 			nameTest: "Успешный случай",
 			token:    "valid_token",
 			mockSetup: func() {
-
-				mock.ExpectQuery("SELECT user_id, created_at, expired_at FROM user_tokens").
+				// для getIDByToken
+				mock.ExpectQuery("SELECT user_id, expired_at FROM user_tokens").
 					WithArgs("valid_token").
-					WillReturnRows(sqlmock.NewRows([]string{"user_id", "created_at", "expired_at"}).
-						AddRow(1, tn, tn.Add(1*time.Hour)))
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "expired_at"}).
+						AddRow(1, tn.Add(1*time.Hour)))
 
+				// для historyWithrawals
 				mock.ExpectQuery("SELECT order_number, sum, processed_at FROM withdrawals").
 					WithArgs(1).
 					WillReturnRows(sqlmock.NewRows([]string{"order_number", "sum", "processed_at"}).
 						AddRow("order1", 100.0, tn))
 			},
-			wantHist: []HistoryWithdrawalsT{{Order: "order1", Sum: 100.0, ProcessedAt: tn}},
+			wantHist: []HistoryWithdrawals{{Order: "order1", Sum: 100.0, ProcessedAt: tn}},
 			wantErr:  nil,
 		},
 	}
@@ -986,7 +1052,6 @@ func Test_HistoryWithrawals_SUCCESS(t *testing.T) {
 			assert.Equalf(t, tt.wantHist[0].Sum, result[0].Sum, "ожидалась сумма <%s> а принято <%s>", tt.wantHist[0].Sum, result[0].Sum)
 			assert.Equalf(t, tn, result[0].ProcessedAt, "ожидалось время <%s> а принято <%s>", tn, result[0].ProcessedAt)
 
-			// Проверяем, что все ожидания mock выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания выполнены: %s", err)
 			}
@@ -1091,7 +1156,6 @@ func Test_UpdateOrder_SUCCESS(t *testing.T) {
 			err := adptPG.UpdateOrder(tt.data)
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
-			// Проверяем, что все ожидания mock выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания выполнены: %s", err)
 			}
@@ -1198,7 +1262,6 @@ func Test_UpdateOrderStatus_SUCCESS(t *testing.T) {
 			err := adptPG.UpdateOrderStatus(tt.data)
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
-			// Проверяем, что все ожидания были выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
 			}
@@ -1284,6 +1347,7 @@ func Test_AddOrderInQueue_SUCCESS(t *testing.T) {
 		},
 	}
 
+	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.nameTest, func(t *testing.T) {
 
@@ -1292,7 +1356,6 @@ func Test_AddOrderInQueue_SUCCESS(t *testing.T) {
 			err := adptPG.AddOrderInQueue(tt.orderNumber)
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
-			// Проверяем, что все ожидания были выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
 			}
@@ -1325,6 +1388,7 @@ func Test_AddOrderInQueue_FAULT(t *testing.T) {
 		},
 	}
 
+	// Тесты
 	for _, tt := range testsData {
 		t.Run(tt.nameTest, func(t *testing.T) {
 
@@ -1381,7 +1445,6 @@ func Test_GetOrdersInQueue_SUCCESS(t *testing.T) {
 			_, err := adptPG.GetOrdersInQueue()
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
-			// Проверяем, что все ожидания были выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
 			}

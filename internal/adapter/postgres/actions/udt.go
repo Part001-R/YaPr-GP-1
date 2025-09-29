@@ -13,15 +13,16 @@ const (
 )
 
 // Типы данных
-type MutexesT struct {
+type Mutexes struct {
 	Registration sync.RWMutex
 }
 
-type PostgresT struct {
-	PtrDB *sql.DB
+type PostgresConf struct {
+	PtrDB     *sql.DB
+	muBalance sync.Mutex
 }
 
-type OrderT struct {
+type Order struct {
 	Number     string
 	Status     string
 	Accrual    float64
@@ -35,99 +36,120 @@ type DataOrderAccr struct {
 	Accrual float64
 }
 
-type BalanceWithdrawT struct {
+type BalanceWithdraw struct {
 	Order string
 	Sum   float64
 }
 
-type HistoryWithdrawalsT struct {
+type HistoryWithdrawals struct {
 	Order       string
 	Sum         float64
 	ProcessedAt time.Time
 }
 
-type BalanceT struct {
+type Balance struct {
 	Current   float64
 	Withdrawn float64
 }
 
 // Интерфейсы
-type RegistrationUserDBI interface {
-	RegisterUser(login, password string) (int64, error)
+type RegistrationUser interface {
+	RegisterUser(tx *sql.Tx, login, password string) (int64, error)
 }
 
-type AuthenticationUserDBI interface {
+type AuthenticationUser interface {
 	AuthenticationUser(login, password string) (string, error)
 }
 
-type AddOrderDBI interface {
+type AddOrder interface {
 	AddOrder(order string, userID int64) error
 }
 
-type GetOrdersUserDBI interface {
-	GetOrdersUser(token string) (orders []OrderT, err error)
+type AddOrderTx interface {
+	AddOrderTx(tx *sql.Tx, order string, userID int64) error
 }
 
-type GetUserBalanceDBI interface {
-	GetUserBalance(userID int64) (BalanceT, error)
+type GetOrdersUser interface {
+	GetOrdersUser(token string) (orders []Order, err error)
 }
 
-type HistoryWithrawalsDBI interface {
-	HistoryWithrawals(token string) ([]HistoryWithdrawalsT, error)
+type GetUserBalance interface {
+	GetUserBalance(userID int64) (Balance, error)
 }
 
-type CreateUserBalanceDBI interface {
-	CreateUserBalance(userID int64) error
+type HistoryWithrawals interface {
+	HistoryWithrawals(token string) (hw []HistoryWithdrawals, err error)
 }
 
-type GetUserIDByTokenDBI interface {
+type CreateUserBalance interface {
+	CreateUserBalance(tx *sql.Tx, userID int64) error
+}
+
+type GetUserIDByToken interface {
 	GetUserIDByToken(token string) (int64, error)
 }
 
-type DoWithdrawDBI interface {
-	DoWithdraw(userID int64, sumWithdraw float64, curBalance BalanceT, order string) error
+type DoWithdrawTx interface {
+	DoWithdrawTx(tx *sql.Tx, userID int64, sumWithdraw float64, curBalance Balance, order string) error
 }
 
-type UpdateOrderDBI interface {
+type UpdateOrder interface {
 	UpdateOrder(data DataOrderAccr) error
 }
 
-type AddOrderInQueueDBI interface {
+type AddOrderInQueue interface {
 	AddOrderInQueue(orderNumber string) error
 }
 
-type GetOrdersInQueueDBI interface {
+type GetOrdersInQueue interface {
 	GetOrdersInQueue() ([]string, error)
 }
 
-type UpdateOrderStatusDBI interface {
+type UpdateOrderStatus interface {
 	UpdateOrderStatus(data DataOrderAccr) error
 }
 
-type CreateUpdateTokenDBI interface {
-	CreateUpdateToken(id int64) (string, error)
+type CreateUpdateToken interface {
+	CreateUpdateToken(tx *sql.Tx, id int64) (string, error)
 }
 
-type PostgresI interface {
-	RegistrationUserDBI
-	AuthenticationUserDBI
-	AddOrderDBI
-	GetOrdersUserDBI
-	GetUserBalanceDBI
-	HistoryWithrawalsDBI
-	CreateUserBalanceDBI
-	GetUserIDByTokenDBI
-	DoWithdrawDBI
-	UpdateOrderDBI
-	AddOrderInQueueDBI
-	GetOrdersInQueueDBI
-	UpdateOrderStatusDBI
-	CreateUpdateTokenDBI
+type BeginTx interface {
+	BeginTx() (*sql.Tx, error)
+}
+
+type CommitTx interface {
+	CommitTx(tx *sql.Tx) error
+}
+
+type GetNewOrderNumbers interface {
+	GetNewOrderNumbers(offset int) ([]string, error)
+}
+
+type Postgres interface {
+	RegistrationUser
+	AuthenticationUser
+	AddOrder
+	AddOrderTx
+	GetOrdersUser
+	GetUserBalance
+	HistoryWithrawals
+	CreateUserBalance
+	GetUserIDByToken
+	DoWithdrawTx
+	UpdateOrder
+	AddOrderInQueue
+	GetOrdersInQueue
+	UpdateOrderStatus
+	CreateUpdateToken
+	BeginTx
+	CommitTx
+	GetNewOrderNumbers
 }
 
 // Создание экземпляра адаптера
-func NewInstAdapterPostgres(db *sql.DB) PostgresI {
-	return &PostgresT{
-		PtrDB: db,
+func NewInstAdapterPostgres(db *sql.DB) Postgres {
+	return &PostgresConf{
+		PtrDB:     db,
+		muBalance: sync.Mutex{},
 	}
 }

@@ -6,27 +6,27 @@ const (
 	ErrInternalServerErr = "внутренняя ошибка сервера"
 )
 
-type OrderDataRxT struct {
+type OrderDataRx struct {
 	Order   string  `json:"order"`
 	Status  string  `json:"status"`
 	Accrual float64 `json:"accrual,omitempty"`
 }
 
-type AccrualT struct {
+type AccrualConf struct {
 	Address string
 }
 
-type GetOrderInfoI interface {
-	GetOrderInfo(order string) (OrderDataRxT, error)
+type GetOrderInfo interface {
+	GetOrderInfo(order string) (OrderDataRx, error)
 }
 
-type AccrualI interface {
-	GetOrderInfoI
+type Accrual interface {
+	GetOrderInfo
 }
 
 // Создание экземпляра адаптера
-func NewInstAdapterAccrual(address string) AccrualI {
-	return &AccrualT{
+func NewInstAdapterAccrual(address string) Accrual {
+	return &AccrualConf{
 		Address: address,
 	}
 }

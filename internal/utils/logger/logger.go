@@ -30,27 +30,3 @@ func Initialize(level string) error {
 	Log = zl
 	return nil
 }
-
-// Вспомогательная функция для отладки работы приложения.
-//
-// Параметры:
-//
-// str - строка, для записи в файл.
-
-/*
-func WriteInFileDebugData(str string) {
-	filename := "debug.txt"
-
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("ошибка <%v> открытия файла <%s>", err, filename)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	if _, err := file.WriteString(str + "\n"); err != nil {
-		log.Fatalf("ошибка <%v> записи в файл <%s>", err, filename)
-	}
-}
-*/

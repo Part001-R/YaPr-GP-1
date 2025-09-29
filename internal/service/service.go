@@ -43,7 +43,7 @@ func App() error {
 }
 
 // Подготовительные действия
-func prepare() (*ServiceT, actionsaccr.AccrualI, actionspg.PostgresI, error) {
+func prepare() (*ServiceConf, actionsaccr.Accrual, actionspg.Postgres, error) {
 
 	// Флаги
 	flags := flags.ParseFlags()
@@ -51,21 +51,21 @@ func prepare() (*ServiceT, actionsaccr.AccrualI, actionspg.PostgresI, error) {
 	// Логер
 	err := logger.Initialize(logLevel)
 	if err != nil {
-		return &ServiceT{}, nil, nil, fmt.Errorf("функия Initialize вернула ошибку: <%w>", err)
+		return &ServiceConf{}, nil, nil, fmt.Errorf("функия Initialize вернула ошибку: <%w>", err)
 	}
 
 	// БД
 	if flags.DatabaseURI == "" {
-		return &ServiceT{}, nil, nil, errors.New("нет содержимого в DatabaseURI")
+		return &ServiceConf{}, nil, nil, errors.New("нет содержимого в DatabaseURI")
 	}
 
 	dbPtr, funcCloseDB, err := database.ConnectDB(flags.DatabaseURI)
 	if err != nil {
-		return &ServiceT{}, nil, nil, fmt.Errorf("функция ConnectDB вернула ошибку: <%w>", err)
+		return &ServiceConf{}, nil, nil, fmt.Errorf("функция ConnectDB вернула ошибку: <%w>", err)
 	}
 
 	if err := database.MigrationUpDB(dbPtr); err != nil {
-		return &ServiceT{}, nil, nil, fmt.Errorf("функия MigrationDB вернула ошибку: <%w>", err)
+		return &ServiceConf{}, nil, nil, fmt.Errorf("функия MigrationDB вернула ошибку: <%w>", err)
 	}
 
 	// Экземляр адаптера Postgres
@@ -88,11 +88,16 @@ func prepare() (*ServiceT, actionsaccr.AccrualI, actionspg.PostgresI, error) {
 }
 
 // Работа
-func server(params *ServiceT, adptPG actionspg.PostgresI, adptAccr actionsaccr.AccrualI) error {
+func server(params *ServiceConf, adptPG actionspg.Postgres, adptAccr actionsaccr.Accrual) error {
 
 	// Проверка аргументов
 	if params == nil {
 		return errors.New("в параметре params, нет указателя")
+	}
+
+	// Проверка номеров заказа на статус NEW и перенос в очередь
+	if err := startUpCheckOrdersByNEW(adptPG); err != nil {
+		return fmt.Errorf("функция startUpCheckOrdersByNEW вернула ошибку: <%w>", err)
 	}
 
 	// Запуск контроллера
@@ -107,7 +112,7 @@ func server(params *ServiceT, adptPG actionspg.PostgresI, adptAccr actionsaccr.A
 	sigSys := make(chan os.Signal, 1)
 	signal.Notify(sigSys, syscall.SIGINT, syscall.SIGTERM)
 
-	data := checkReasonStopT{
+	data := checkReasonStop{
 		chCntrErr: chCntrErr,
 		chAccrErr: chAccrErr,
 		sigSys:    sigSys,
@@ -128,7 +133,7 @@ func server(params *ServiceT, adptPG actionspg.PostgresI, adptAccr actionsaccr.A
 //
 // data - набор данных для обеспечения работы функции.
 // params - параметры.
-func signalsStopRun(data checkReasonStopT, params *ServiceT) error {
+func signalsStopRun(data checkReasonStop, params *ServiceConf) error {
 
 	// Проверка аргументов
 	if data.chAccrErr == nil {
@@ -181,7 +186,7 @@ func signalsStopRun(data checkReasonStopT, params *ServiceT) error {
 // adptAccr - интерфес адаптера Accrual.
 // adptPG - интерфейс адаптера Postgres.
 // chAccrErr - канал для возврата ошибки go рутины.
-func runAccrual(chRx chan string, adptAccr actionsaccr.AccrualI, adptPG actionspg.PostgresI, chAccrErr chan error) {
+func runAccrual(chRx chan string, adptAccr actionsaccr.Accrual, adptPG actionspg.Postgres, chAccrErr chan error) {
 
 	/*
 		Логика работы.
@@ -218,7 +223,7 @@ func runAccrual(chRx chan string, adptAccr actionsaccr.AccrualI, adptPG actionsp
 	go runOrdersQueue(chRxQueue, adptPG, chAccrErr)
 
 	// Логика
-	paramsProcOrdrQue := ProcessingOrderT{
+	paramsProcOrdrQue := ProcessingOrder{
 		tmr:                   &time.Timer{},
 		newOrdNumb:            "",
 		needStoreByFreq:       false,
@@ -253,7 +258,7 @@ func runAccrual(chRx chan string, adptAccr actionsaccr.AccrualI, adptPG actionsp
 // chTx - канал для передачи.
 // adptPG - интерфейс адаптера Postgres.
 // chAccrErr - канал для возврата ошибки.
-func runOrdersQueue(chTx chan string, adptPG actionspg.PostgresI, chAccrErr chan error) {
+func runOrdersQueue(chTx chan string, adptPG actionspg.Postgres, chAccrErr chan error) {
 
 	// Проверка аргументов
 	if chAccrErr == nil {
@@ -261,32 +266,36 @@ func runOrdersQueue(chTx chan string, adptPG actionspg.PostgresI, chAccrErr chan
 	}
 	if chTx == nil {
 		chAccrErr <- errors.New("в аргументе chTx, нет указателя")
+		return
 	}
 	if adptPG == nil {
 		chAccrErr <- errors.New("в аргументе adptPG, нет указателя")
+		return
 	}
 
 	// Логика
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
 	for {
+		<-ticker.C
+
 		// Получение списка заказов ожидающих обработки
 		ordersQueue, err := adptPG.GetOrdersInQueue()
 		if err != nil {
 			chAccrErr <- fmt.Errorf("ошибка при получении списка ожидающих обработки заказов: <%w>", err)
 			return
 		}
-
 		// Передача номеров заказа на обработку
-		if len(ordersQueue) > 0 {
-			for _, v := range ordersQueue {
-				chTx <- v
+		for _, v := range ordersQueue {
+			select {
+			case chTx <- v:
+			case <-time.After(3 * time.Second):
+				chAccrErr <- fmt.Errorf("отправленные данные в канал, не прочитаны за отведённое время")
+				return
 			}
 		}
-
-		// Очередь передана
-		// Ожидание 10 секунд
-		time.Sleep(10 * time.Second)
 	}
-
 }
 
 // Функция проверяет ошибку на отсутствие подключение к Accrual. Возвращает true - если нет подключения.
@@ -338,7 +347,7 @@ func isResponceTimeout(err error) bool {
 // Параметры:
 //
 // params - параметры.
-func processingOrder(params *ProcessingOrderT) error {
+func processingOrder(params *ProcessingOrder) (err error) {
 
 	// Проверка аргументов
 	if params == nil {
@@ -353,8 +362,7 @@ func processingOrder(params *ProcessingOrderT) error {
 	default:
 	}
 
-	var accrResponce actionsaccr.OrderDataRxT
-	var err error
+	var accrResponce actionsaccr.OrderDataRx
 
 	// Если есть необходимость сохранения номера заказа в резервном хранилище, по коду 429
 	if params.needStoreByFreq {
@@ -373,10 +381,11 @@ func processingOrder(params *ProcessingOrderT) error {
 			if er := checkErrors(err, params); er != nil {
 				return fmt.Errorf("функция checkErrors, вернула ошибку: <%w>", er)
 			}
+			return nil
 		}
 
 		// Обработка ответа от Accrual
-		if err := processingResponseAccrual(accrResponce, params); err != nil {
+		if err := processingResponceAccrual(accrResponce, params); err != nil {
 			return fmt.Errorf("функция processingResponseAccrual, вернула ошибку: <%w>", err)
 		}
 	}
@@ -388,7 +397,7 @@ func processingOrder(params *ProcessingOrderT) error {
 // Параметры:
 //
 // params - параметры.
-func addOrderInQueue(params *ProcessingOrderT) error {
+func addOrderInQueue(params *ProcessingOrder) error {
 
 	// Проверка аргументов
 	if params == nil {
@@ -442,7 +451,7 @@ func checkNetErrors(err error) (bool, error) {
 //
 // err - обрабатываемая ошибка.
 // params - параметры.
-func checkOtherErrors(err error, params *ProcessingOrderT) (bool, error) {
+func checkOtherErrors(err error, params *ProcessingOrder) (bool, error) {
 
 	// Проверка аргументов
 	if err == nil {
@@ -466,8 +475,10 @@ func checkOtherErrors(err error, params *ProcessingOrderT) (bool, error) {
 		logger.Log.Error("Превышено количество запросов к сервису",
 			zap.String("order", params.newOrdNumb),
 		)
-		params.needStoreByFreq = true
-		params.tmr = time.NewTimer(10 * time.Second) // запуск таймера
+		if !params.needStoreByFreq { // защита инициализации
+			params.needStoreByFreq = true
+			params.tmr = time.NewTimer(10 * time.Second) // запуск таймера
+		}
 
 	case ErrAccrInternalServerErr: // Внутренняя ошибка сервера
 		logger.Log.Error("Внутренняя ошибка сервера",
@@ -501,7 +512,7 @@ func checkOtherErrors(err error, params *ProcessingOrderT) (bool, error) {
 //
 // err - обрабатываемая ошибка.
 // params - параметры.
-func checkErrors(err error, params *ProcessingOrderT) error {
+func checkErrors(err error, params *ProcessingOrder) error {
 
 	// Проверка аргументов
 	if err == nil {
@@ -546,7 +557,7 @@ func checkErrors(err error, params *ProcessingOrderT) error {
 //
 // accrResponce - ответ от Accrual.
 // params - параметры.
-func processingResponseAccrual(accrResponce actionsaccr.OrderDataRxT, params *ProcessingOrderT) error {
+func processingResponceAccrual(accrResponce actionsaccr.OrderDataRx, params *ProcessingOrder) error {
 
 	// Проверка статуса ответа
 	switch accrResponce.Status {
@@ -600,6 +611,46 @@ func processingResponseAccrual(accrResponce actionsaccr.OrderDataRxT, params *Pr
 
 		if err := params.adptPG.UpdateOrder(actionspg.DataOrderAccr(accrResponce)); err != nil {
 			return fmt.Errorf("ошибка обновления данных заказа: <%w>", err)
+		}
+	}
+
+	return nil
+}
+
+// Функция выполняет еренос номеров заказа с статусом NEW, в очередь на обработку. Возвращает ошибку.
+//
+// Параметры:
+//
+// adptPG - адаптер Postgres.
+func startUpCheckOrdersByNEW(adptPG actionspg.Postgres) error {
+
+	offset := 0
+
+	for {
+		// Чтение номеров по 10
+		orders, err := adptPG.GetNewOrderNumbers(offset)
+		if err != nil {
+			return fmt.Errorf("функция adptPG.GetNewOrderNumbers вернула ошибку: <%w>", err)
+		}
+		offset += 10
+
+		// Передача в очередь
+		for _, order := range orders {
+
+			err := adptPG.AddOrderInQueue(order)
+			if err != nil {
+				errBase := errors.Unwrap(err)
+				if errBase.Error() == ErrOrderExistInQueue { // Если такой номер уже существует в очереди
+
+				} else {
+					return fmt.Errorf("ошибка при сохранении заказа в резервной очереди: <%w>", err)
+				}
+			}
+		}
+
+		// Проверка на финальный запрос
+		if len(orders) < 10 {
+			break
 		}
 	}
 

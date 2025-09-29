@@ -15,15 +15,15 @@ import (
 
 // UserRegister (POST)
 
-func UserRegisterLayerRx(r *http.Request) (RegisterRxT, error) {
+func UserRegisterLayerRx(r *http.Request) (RegisterRx, error) {
 
 	// Проверка аргументов
 	if r == nil {
 		logger.Log.Error("в аргументе r нет указателя")
-		return RegisterRxT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return RegisterRx{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 	if r.Header.Get("Content-Type") != "application/json" {
-		return RegisterRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return RegisterRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Чтение тела запроса
@@ -34,7 +34,7 @@ func UserRegisterLayerRx(r *http.Request) (RegisterRxT, error) {
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return RegisterRxT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return RegisterRx{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 	defer func() {
 		if err := r.Body.Close(); err != nil {
@@ -46,19 +46,19 @@ func UserRegisterLayerRx(r *http.Request) (RegisterRxT, error) {
 		}
 	}()
 
-	var rxData RegisterRxT
+	var rxData RegisterRx
 	if err := json.Unmarshal(bodyBytes, &rxData); err != nil {
 		logger.Log.Error("Ошибка Unmarshal",
 			zap.Error(err),
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return RegisterRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return RegisterRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Проверка на пустое значение
 	if rxData.Login == "" || rxData.Password == "" {
-		return RegisterRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return RegisterRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Результат
@@ -81,15 +81,15 @@ func UserRegisterLayerTx(w http.ResponseWriter, token string) error {
 
 // UserLogin (POST)
 
-func UserLoginLayerRx(r *http.Request) (LoginRxT, error) {
+func UserLoginLayerRx(r *http.Request) (LoginRx, error) {
 
 	// Проверка аргументов
 	if r == nil {
 		logger.Log.Error("в аргументе r нет указателя")
-		return LoginRxT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return LoginRx{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 	if r.Header.Get("Content-Type") != "application/json" {
-		return LoginRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return LoginRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Чтение тела запроса
@@ -100,7 +100,7 @@ func UserLoginLayerRx(r *http.Request) (LoginRxT, error) {
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return LoginRxT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return LoginRx{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 	defer func() {
 		if err := r.Body.Close(); err != nil {
@@ -112,19 +112,19 @@ func UserLoginLayerRx(r *http.Request) (LoginRxT, error) {
 		}
 	}()
 
-	var rxData LoginRxT
+	var rxData LoginRx
 	if err := json.Unmarshal(bodyBytes, &rxData); err != nil {
 		logger.Log.Error("Ошибка Unmarshal",
 			zap.Error(err),
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return LoginRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return LoginRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Проверка на пустое значение
 	if rxData.Login == "" || rxData.Password == "" {
-		return LoginRxT{}, fmt.Errorf("%d", http.StatusBadRequest)
+		return LoginRx{}, fmt.Errorf("%d", http.StatusBadRequest)
 	}
 
 	// Результат
@@ -231,7 +231,7 @@ func GetOrdersUserLayerRx(r *http.Request) (token string, err error) {
 	return token, nil
 }
 
-func GetOrdersUserLayerTx(w http.ResponseWriter, orders []actions.OrderT) error {
+func GetOrdersUserLayerTx(w http.ResponseWriter, orders []actions.Order) error {
 
 	// Проверка аргументов
 	if w == nil {
@@ -281,7 +281,7 @@ func GetUserBalanceLayerRx(r *http.Request) (token string, err error) {
 	return token, nil
 }
 
-func GetUserBalanceLayerTx(w http.ResponseWriter, balanceRx actions.BalanceT) error {
+func GetUserBalanceLayerTx(w http.ResponseWriter, balanceRx actions.Balance) error {
 
 	// Проверка аргументов
 	if w == nil {
@@ -308,19 +308,19 @@ func GetUserBalanceLayerTx(w http.ResponseWriter, balanceRx actions.BalanceT) er
 
 // BalanceWithdraw (POST)
 
-func BalanceWithdrawLayerRx(r *http.Request) (string, actions.BalanceWithdrawT, error) {
+func BalanceWithdrawLayerRx(r *http.Request) (string, actions.BalanceWithdraw, error) {
 
 	// Проверка аргументов
 	if r == nil {
 		logger.Log.Error("в аргументе r нет указателя")
-		return "", actions.BalanceWithdrawT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return "", actions.BalanceWithdraw{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 
 	// Логика
 	token := r.Header.Get("Authorization")
 
 	if token == "" {
-		return "", actions.BalanceWithdrawT{}, fmt.Errorf("%d", http.StatusUnauthorized)
+		return "", actions.BalanceWithdraw{}, fmt.Errorf("%d", http.StatusUnauthorized)
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
@@ -330,7 +330,7 @@ func BalanceWithdrawLayerRx(r *http.Request) (string, actions.BalanceWithdrawT, 
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return "", actions.BalanceWithdrawT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return "", actions.BalanceWithdraw{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 	defer func() {
 		if err := r.Body.Close(); err != nil {
@@ -342,7 +342,7 @@ func BalanceWithdrawLayerRx(r *http.Request) (string, actions.BalanceWithdrawT, 
 		}
 	}()
 
-	var dataRx actions.BalanceWithdrawT
+	var dataRx actions.BalanceWithdraw
 
 	if err := json.Unmarshal(bodyBytes, &dataRx); err != nil {
 		logger.Log.Error("Ошибка Unmarshal",
@@ -350,7 +350,7 @@ func BalanceWithdrawLayerRx(r *http.Request) (string, actions.BalanceWithdrawT, 
 			zap.String("method", r.Method),
 			zap.String("url", r.URL.String()),
 		)
-		return "", actions.BalanceWithdrawT{}, fmt.Errorf("%d", http.StatusInternalServerError)
+		return "", actions.BalanceWithdraw{}, fmt.Errorf("%d", http.StatusInternalServerError)
 	}
 
 	// Результат

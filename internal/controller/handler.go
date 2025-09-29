@@ -2,8 +2,6 @@ package controller
 
 import (
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -15,23 +13,26 @@ import (
 	"go.uber.org/zap"
 )
 
-func Middleware(h http.HandlerFunc) http.HandlerFunc {
+func authorizationMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			logger.Log.Info("принят неавторизованный запрос",
+				zap.String("URI", r.RequestURI),
+				zap.String("метод", r.Method),
+			)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
+}
+
+func encodingMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ow := w
-
-		// Проверка заголовка Authorization для всех URL, кроме регистрации
-		if r.URL.Path != "/api/user/register" && r.URL.Path != "/api/user/login" {
-			authHeader := r.Header.Get("Authorization")
-
-			if authHeader == "" {
-				logger.Log.Info("принят неавторизованный запрос",
-					zap.String("URI", r.RequestURI),
-					zap.String("метод", r.Method),
-				)
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-				return
-			}
-		}
 
 		// Проверка поддерживает ли сервер запрашиваемую клиентом кодировку
 		acceptEncoding := r.Header.Get("Accept-Encoding")
@@ -102,7 +103,6 @@ func Middleware(h http.HandlerFunc) http.HandlerFunc {
 					found = true
 				case "identity":
 					found = true
-
 				default:
 				}
 			}
@@ -115,7 +115,7 @@ func Middleware(h http.HandlerFunc) http.HandlerFunc {
 
 		// Запуск обработчика
 		timeStart := time.Now()
-		h(ow, r)
+		h.ServeHTTP(ow, r) // Используем ServeHTTP для передачи управления
 		duration := time.Since(timeStart)
 
 		// Вывод в лог сводной информации по запросу
@@ -128,10 +128,7 @@ func Middleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 // Регистрация пользователя
-func (c *ControllerT) Register(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.Register.Lock()
-	defer c.Mtx.Register.Unlock()
+func (c *ControllerConf) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	registerDataRx, err := UserRegisterLayerRx(r)
@@ -186,10 +183,7 @@ func (c *ControllerT) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // Аутентификация пользователя
-func (c *ControllerT) Login(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.Login.Lock()
-	defer c.Mtx.Login.Unlock()
+func (c *ControllerConf) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	loginDataRx, err := UserLoginLayerRx(r)
@@ -247,10 +241,7 @@ func (c *ControllerT) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // Загрузка номера заказа
-func (c *ControllerT) AddOrder(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.AddOrder.Lock()
-	defer c.Mtx.AddOrder.Unlock()
+func (c *ControllerConf) AddOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	order, tokenRx, err := AddOrderLayerRx(r)
@@ -323,10 +314,7 @@ func (c *ControllerT) AddOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // Получение списка загруженных номеров заказов
-func (c *ControllerT) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.GetOrdersUser.Lock()
-	defer c.Mtx.GetOrdersUser.Unlock()
+func (c *ControllerConf) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	tokenRx, err := GetOrdersUserLayerRx(r)
@@ -396,10 +384,7 @@ func (c *ControllerT) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // Получение текущего баланса пользователя
-func (c *ControllerT) GetUserBalance(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.GetUserBalance.Lock()
-	defer c.Mtx.GetUserBalance.Unlock()
+func (c *ControllerConf) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	token, err := GetUserBalanceLayerRx(r)
@@ -469,10 +454,7 @@ func (c *ControllerT) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 // Cписание средств
-func (c *ControllerT) BalanceWithdraw(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.BalanceWithdraw.Lock()
-	defer c.Mtx.BalanceWithdraw.Unlock()
+func (c *ControllerConf) BalanceWithdraw(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	token, dataRx, err := BalanceWithdrawLayerRx(r)
@@ -493,7 +475,7 @@ func (c *ControllerT) BalanceWithdraw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Логика
-	var copyDataRx actions.BalanceWithdrawT
+	var copyDataRx actions.BalanceWithdraw
 	copyDataRx.Order = dataRx.Order
 	copyDataRx.Sum = dataRx.Sum
 
@@ -511,7 +493,7 @@ func (c *ControllerT) BalanceWithdraw(w http.ResponseWriter, r *http.Request) {
 		case errNotEnoughtBalance: //  на счету недостаточно средств
 			http.Error(w, http.StatusText(http.StatusPaymentRequired), http.StatusPaymentRequired)
 			return
-		case errIncorrectOrderNumb: //  неверный номер заказа
+		case errIncorrectOrderNumb, errWithdrOrderExist: //  неверный номер заказа
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		default:
@@ -538,10 +520,7 @@ func (c *ControllerT) BalanceWithdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 // Получение истории списания
-func (c *ControllerT) GetHistoryWithdrawals(w http.ResponseWriter, r *http.Request) {
-
-	c.Mtx.GetHistoryWithdrawals.Lock()
-	defer c.Mtx.GetHistoryWithdrawals.Unlock()
+func (c *ControllerConf) GetHistoryWithdrawals(w http.ResponseWriter, r *http.Request) {
 
 	// Приём
 	token, err := GetHistoryWithdrawelsLayerRx(r)
@@ -614,48 +593,6 @@ func (c *ControllerT) GetHistoryWithdrawals(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// Обработчик по умолчанию
-func DefaultHandler(w http.ResponseWriter, r *http.Request) {
-
-	// Читаем тело запроса
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		logger.Log.Error("Ошибка чтения тела запроса",
-			zap.String("err", err.Error()),
-		)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		if err := r.Body.Close(); err != nil {
-			logger.Log.Error("Ошибка закрытия Body.Close",
-				zap.String("err", err.Error()),
-			)
-		}
-	}()
-
-	// Лог
-	if len(body) > 0 {
-		logger.Log.Error("Информация неопознанного запроса с телом",
-			zap.String("Method", r.Method),
-			zap.String("Path", r.URL.Path),
-			zap.String("Headers", fmt.Sprintf("<%v>", r.Header)),
-			zap.String("Body", string(body)),
-			zap.String("url", r.URL.String()),
-		)
-	} else {
-		logger.Log.Warn("Информация неопознанного запроса без тела",
-			zap.String("Method", r.Method),
-			zap.String("Path", r.URL.Path),
-			zap.String("Headers", fmt.Sprintf("<%v>", r.Header)),
-			zap.String("url", r.URL.String()),
-		)
-	}
-
-	//ответ
-	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-}
-
 // Разворачивание всех оборачиваний. Возвращается исходная ошибка.
 //
 // Параметры:
@@ -679,7 +616,7 @@ func unwrapErr(err error) error {
 // Парамметры:
 //
 // withdrawals - история списаний.
-func prepareWithdrawalResponse(withdrawals []actions.HistoryWithdrawalsT) ([]WithdrawalResponse, error) {
+func prepareWithdrawalResponse(withdrawals []actions.HistoryWithdrawals) ([]WithdrawalResponse, error) {
 
 	// Проверка аргументов
 	if withdrawals == nil {

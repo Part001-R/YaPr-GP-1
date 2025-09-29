@@ -18,7 +18,7 @@ import (
 
 // Middleware
 
-func Test_Middleware_SUCCESS(t *testing.T) {
+func Test_EncodingMiddleware_SUCCESS(t *testing.T) {
 
 	// Обработчик для теста Middleware
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +26,7 @@ func Test_Middleware_SUCCESS(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	mw := Middleware(testHandler)
+	mw := encodingMiddleware(testHandler)
 
 	// Данные для теста
 	testData := []struct {
@@ -75,7 +75,7 @@ func Test_Middleware_SUCCESS(t *testing.T) {
 	}
 }
 
-func Test_Middleware_ERROR(t *testing.T) {
+func Test_EncodingMiddleware_ERROR(t *testing.T) {
 
 	// Обработчик для теста Middleware
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +83,7 @@ func Test_Middleware_ERROR(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	mw := Middleware(testHandler)
+	mw := encodingMiddleware(testHandler)
 
 	// Данные для теста
 	testData := []struct {
@@ -93,13 +93,6 @@ func Test_Middleware_ERROR(t *testing.T) {
 		encodingT  string
 		wantCodeT  int
 	}{
-		{
-			nameTest:   "без Authorization",
-			methodReqT: http.MethodGet,
-			reqURLT:    "/api/user/test",
-			encodingT:  "gzip",
-			wantCodeT:  http.StatusUnauthorized,
-		},
 		{
 			nameTest:   "неподдерживаемая кодировка Accept-Encoding",
 			methodReqT: http.MethodGet,
@@ -143,6 +136,99 @@ func Test_Middleware_ERROR(t *testing.T) {
 	}
 }
 
+func Test_AuthorizationMiddleware_SUCCESS(t *testing.T) {
+
+	// Обработчик для теста Middleware
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Authorized"))
+	})
+
+	mw := authorizationMiddleware(testHandler)
+
+	// Данные для теста
+	testData := []struct {
+		nameTest  string
+		methodReq string
+		reqURL    string
+		token     string
+		wantCode  int
+	}{
+		{
+			nameTest:  "успешный запрос с Authorization",
+			methodReq: http.MethodGet,
+			reqURL:    "/api/user/test",
+			token:     "AAA",
+			wantCode:  http.StatusOK,
+		},
+	}
+
+	// Тесты
+	for _, tt := range testData {
+		t.Run(tt.nameTest, func(t *testing.T) {
+
+			req := httptest.NewRequest(tt.methodReq, tt.reqURL, nil)
+			req.Header.Set("Authorization", tt.token)
+
+			res := httptest.NewRecorder()
+
+			mw.ServeHTTP(res, req)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			require.Equalf(t, tt.wantCode, res.Code, "ожидали код %d, получили %d", tt.wantCode, res.Code)
+		})
+	}
+}
+
+func Test_AuthorizationMiddleware_FAULT(t *testing.T) {
+
+	// Обработчик для теста Middleware
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Authorized"))
+	})
+
+	mw := authorizationMiddleware(testHandler)
+
+	// Данные для теста
+	testData := []struct {
+		nameTest  string
+		methodReq string
+		reqURL    string
+		wantCode  int
+	}{
+		{
+			nameTest:  "Без Authorization",
+			methodReq: http.MethodGet,
+			reqURL:    "/api/user/test",
+			wantCode:  http.StatusUnauthorized,
+		},
+	}
+
+	// Тесты
+	for _, tt := range testData {
+		t.Run(tt.nameTest, func(t *testing.T) {
+
+			req := httptest.NewRequest(tt.methodReq, tt.reqURL, nil)
+
+			res := httptest.NewRecorder()
+
+			mw.ServeHTTP(res, req)
+
+			resp := res.Result()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			require.Equalf(t, tt.wantCode, res.Code, "ожидали код %d, получили %d", tt.wantCode, res.Code)
+		})
+	}
+}
+
 // Register
 
 func Test_UserRegisterLayerRx_SUCCESS(t *testing.T) {
@@ -151,13 +237,13 @@ func Test_UserRegisterLayerRx_SUCCESS(t *testing.T) {
 	testsData := []struct {
 		nameT        string
 		urlT         string
-		bodyT        RegisterRxT
+		bodyT        RegisterRx
 		contentTypeT string
 	}{
 		{
 			nameT: "Корректные данные",
 			urlT:  "/aaa",
-			bodyT: RegisterRxT{
+			bodyT: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -169,13 +255,14 @@ func Test_UserRegisterLayerRx_SUCCESS(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.bodyT)
+			bodyBytes, err := json.Marshal(tt.bodyT)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentTypeT)
 
 			result, err := UserRegisterLayerRx(req)
-			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
+			require.NoErrorf(t, err, "неожиданная ошибка UserRegisterLayerRx: <%v>", err)
 			assert.Equalf(t, tt.bodyT.Login, result.Login, "ожидался логин <%s>, а принято <%s>", tt.bodyT.Login, result.Login)
 			assert.Equalf(t, tt.bodyT.Password, result.Password, "ожидался пароль <%s>, а принято <%s>", tt.bodyT.Password, result.Password)
 		})
@@ -188,14 +275,14 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 	testsData := []struct {
 		nameT       string
 		urlT        string
-		body        RegisterRxT
+		body        RegisterRx
 		contentType string
 		wantErr     error
 	}{
 		{
 			nameT: "пустой Login",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "",
 				Password: "BBB",
 			},
@@ -205,7 +292,7 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "пустой Password",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "",
 			},
@@ -215,7 +302,7 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "Content-Type",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -225,7 +312,7 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "req == nil",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -238,7 +325,8 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.body)
+			bodyBytes, err := json.Marshal(tt.body)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentType)
@@ -247,7 +335,7 @@ func Test_UserRegisterLayerRx_FAULT(t *testing.T) {
 				req = nil
 			}
 
-			_, err := UserRegisterLayerRx(req)
+			_, err = UserRegisterLayerRx(req)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 		})
 	}
@@ -329,13 +417,13 @@ func Test_UserLoginLayerRx_SUCCESS(t *testing.T) {
 	testsData := []struct {
 		nameT        string
 		urlT         string
-		bodyT        RegisterRxT
+		bodyT        RegisterRx
 		contentTypeT string
 	}{
 		{
 			nameT: "Корректные данные",
 			urlT:  "/aaa",
-			bodyT: RegisterRxT{
+			bodyT: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -347,13 +435,14 @@ func Test_UserLoginLayerRx_SUCCESS(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.bodyT)
+			bodyBytes, err := json.Marshal(tt.bodyT)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentTypeT)
 
 			result, err := UserLoginLayerRx(req)
-			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
+			require.NoErrorf(t, err, "неожиданная ошибка UserLoginLayerRx: <%v>", err)
 			assert.Equalf(t, tt.bodyT.Login, result.Login, "ожидался логин <%s>, а принято <%s>", tt.bodyT.Login, result.Login)
 			assert.Equalf(t, tt.bodyT.Password, result.Password, "ожидался пароль <%s>, а принято <%s>", tt.bodyT.Password, result.Password)
 		})
@@ -366,14 +455,14 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 	testsData := []struct {
 		nameT       string
 		urlT        string
-		body        RegisterRxT
+		body        RegisterRx
 		contentType string
 		wantErr     error
 	}{
 		{
 			nameT: "пустой Login",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "",
 				Password: "BBB",
 			},
@@ -383,7 +472,7 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "пустой Password",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "",
 			},
@@ -393,7 +482,7 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "Content-Type",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -403,7 +492,7 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 		{
 			nameT: "req == nil",
 			urlT:  "/aaa",
-			body: RegisterRxT{
+			body: RegisterRx{
 				Login:    "AAA",
 				Password: "BBB",
 			},
@@ -416,7 +505,8 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.body)
+			bodyBytes, err := json.Marshal(tt.body)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentType)
@@ -425,7 +515,7 @@ func Test_UserLoginLayerRx_FAULT(t *testing.T) {
 				req = nil
 			}
 
-			_, err := UserLoginLayerRx(req)
+			_, err = UserLoginLayerRx(req)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 		})
 	}
@@ -535,7 +625,8 @@ func Test_AddOrderLayerRx_SUCCESS(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.bodyT)
+			bodyBytes, err := json.Marshal(tt.bodyT)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentTypeT)
@@ -601,7 +692,8 @@ func Test_AddOrderLayerRx_FAULT(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.bodyT)
+			bodyBytes, err := json.Marshal(tt.bodyT)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Content-Type", tt.contentTypeT)
@@ -610,7 +702,7 @@ func Test_AddOrderLayerRx_FAULT(t *testing.T) {
 			if tt.nameT == "req == nil" {
 				req = nil
 			}
-			_, _, err := AddOrderLayerRx(req)
+			_, _, err = AddOrderLayerRx(req)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 		})
 	}
@@ -757,12 +849,12 @@ func Test_GetOrdersUserLayerTx_SUCCESS(t *testing.T) {
 	// Данные для тестов
 	testsData := []struct {
 		nameT      string
-		ordersT    []actions.OrderT
+		ordersT    []actions.Order
 		wantStatus int
 	}{
 		{
 			nameT: "Корректные данные",
-			ordersT: []actions.OrderT{
+			ordersT: []actions.Order{
 				{
 					Number:     "ord1",
 					Status:     "AAA",
@@ -791,7 +883,7 @@ func Test_GetOrdersUserLayerTx_SUCCESS(t *testing.T) {
 			require.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
 
 			// Чтение тела ответа
-			rxData := make([]actions.OrderT, 0)
+			rxData := make([]actions.Order, 0)
 
 			rxBytes, err := io.ReadAll(resp.Body)
 			require.NoErrorf(t, err, "неожиданная ошибка чтения тела ответа <%v>", err)
@@ -813,17 +905,17 @@ func Test_GetOrdersUserLayerTx_FAULT(t *testing.T) {
 	// Данные для тестов
 	testsData := []struct {
 		nameT   string
-		ordersT []actions.OrderT
+		ordersT []actions.Order
 		wantErr error
 	}{
 		{
 			nameT:   "Нет данных",
-			ordersT: []actions.OrderT{},
+			ordersT: []actions.Order{},
 			wantErr: errors.New("500"),
 		},
 		{
 			nameT:   "res == nil",
-			ordersT: []actions.OrderT{},
+			ordersT: []actions.Order{},
 			wantErr: errors.New("500"),
 		},
 	}
@@ -925,12 +1017,12 @@ func Test_GetUserBalanceLayerTx_SUCCESS(t *testing.T) {
 	// Данные для тестов
 	testsData := []struct {
 		nameT      string
-		balanceT   actions.BalanceT
+		balanceT   actions.Balance
 		wantStatus int
 	}{
 		{
 			nameT: "Корректные данные",
-			balanceT: actions.BalanceT{
+			balanceT: actions.Balance{
 				Current:   10,
 				Withdrawn: 9,
 			},
@@ -955,7 +1047,7 @@ func Test_GetUserBalanceLayerTx_SUCCESS(t *testing.T) {
 			require.Equalf(t, tt.wantStatus, resp.StatusCode, "ожидался код <%d> а принято <%d>", tt.wantStatus, resp.StatusCode)
 
 			// Чтение тела ответа
-			var rxData actions.BalanceT
+			var rxData actions.Balance
 
 			rxBytes, err := io.ReadAll(resp.Body)
 			require.NoErrorf(t, err, "неожиданная ошибка чтения тела ответа <%v>", err)
@@ -975,12 +1067,12 @@ func Test_GetUserBalanceLayerTx_FAULT(t *testing.T) {
 	// Данные для тестов
 	testsData := []struct {
 		nameT    string
-		balanceT actions.BalanceT
+		balanceT actions.Balance
 		wantErr  error
 	}{
 		{
 			nameT:    "res == nil",
-			balanceT: actions.BalanceT{},
+			balanceT: actions.Balance{},
 			wantErr:  errors.New("500"),
 		},
 	}
@@ -1010,13 +1102,13 @@ func Test_BalanceWithdrawLayerRx_SUCCESS(t *testing.T) {
 	testsData := []struct {
 		nameT  string
 		urlT   string
-		bodyT  actions.BalanceWithdrawT
+		bodyT  actions.BalanceWithdraw
 		tokenT string
 	}{
 		{
 			nameT: "Корректные данные",
 			urlT:  "/aaa",
-			bodyT: actions.BalanceWithdrawT{
+			bodyT: actions.BalanceWithdraw{
 				Order: "aaa",
 				Sum:   111,
 			},
@@ -1028,7 +1120,8 @@ func Test_BalanceWithdrawLayerRx_SUCCESS(t *testing.T) {
 	for _, tt := range testsData {
 		t.Run(tt.nameT, func(t *testing.T) {
 
-			bodyBytes, _ := json.Marshal(tt.bodyT)
+			bodyBytes, err := json.Marshal(tt.bodyT)
+			require.NoErrorf(t, err, "неожиданная ошибка Marshal: <%v>", err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlT, bytes.NewBuffer(bodyBytes))
 			req.Header.Set("Authorization", tt.tokenT)

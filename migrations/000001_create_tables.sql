@@ -1,7 +1,7 @@
 -- +goose Up
 -- Создание таблицы users
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,                
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,                
     user_name VARCHAR(50) UNIQUE NOT NULL,   
     user_password TEXT NOT NULL,   
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -12,10 +12,10 @@ CREATE INDEX idx_users_user_name ON users(user_name);
 
 -- Создание таблицы user_tokens
 CREATE TABLE user_tokens (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL UNIQUE, 
     token TEXT UNIQUE NOT NULL,
-    access BOOL DEFAULT FALSE, -- (если true - токену дан доступ к БД)
+    access BOOL DEFAULT FALSE,                 -- (если true - токену дан доступ к БД)
     created_at TIMESTAMP NOT NULL,
     expired_at TIMESTAMP NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -25,7 +25,7 @@ CREATE INDEX idx_user_tokens_user_id ON user_tokens(user_id);
 
 -- Создание таблицы orders
 CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,                
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,                
     user_id INT NOT NULL,                 
     order_number TEXT NOT NULL, 
     order_status TEXT NOT NULL,               -- (NEW, PROCESSING, INVALID, PROCESSED)
@@ -40,7 +40,7 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 
 -- Создание таблицы queue_order (сохранение заказов, если Accrual недоступен)
 CREATE TABLE queue_order (
-    id SERIAL PRIMARY KEY,                                
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,                                
     order_number TEXT NOT NULL, 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (order_number)
@@ -48,22 +48,23 @@ CREATE TABLE queue_order (
 
 -- Создание таблицы balance
 CREATE TABLE balance (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     user_id INT UNIQUE NOT NULL,  
     accrual DECIMAL(10, 2) DEFAULT 0.0,        -- баллы Accrual
     withdrawn DECIMAL(10, 2) DEFAULT 0.0,      -- сумма использованных за весь период регистрации баллов
-    FOREIGN KEY (user_id) REFERENCES users(id)  
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE  
 );
 
 CREATE INDEX idx_balance_user_id ON balance(user_id);
 
 -- Создание таблицы withdrawals
 CREATE TABLE withdrawals (
-    id SERIAL PRIMARY KEY,  
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,  
     user_id INT NOT NULL,  
     order_number TEXT NOT NULL, 
     sum DECIMAL(10, 2) DEFAULT 0.0,           -- баллы Accrual  
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE (user_id, order_number)
 );
 

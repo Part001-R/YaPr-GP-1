@@ -10,107 +10,107 @@ import (
 )
 
 // Данные для регистрации пользователя
-type RegisterDataT struct {
+type RegisterData struct {
 	Login    string
 	Password string
 }
 
 // Для представления списка заказов
-type OrderT struct {
+type Order struct {
 	Number     string  `json:"number"`
 	Status     string  `json:"status"`
 	Accrual    float64 `json:"accrual,omitempty"`
 	UploadedAt string  `json:"uploaded_at"`
 }
 
-type BalanceT struct {
+type Balance struct {
 	Current   float64 `json:"current"`
 	Withdrawn float64 `json:"withdrawn"`
 }
 
-type BalanceWithdrawT struct {
+type BalanceWithdraw struct {
 	Order string  `json:"order"`
 	Sum   float64 `json:"sum"`
 }
 
-type DBT struct {
+type DB struct {
 	Ptr *sql.DB
 }
 
 // Для приёма ответа от сервиса Accrual
-type ResponceAccrualT struct {
+type ResponceAccrual struct {
 	Order   string `json:"order"`
 	Status  string `json:"status"`
 	Accrual int    `json:"accrual"`
 }
 
 // Для взаимодействия с go рутиной обработки очереди запросов к Accrual
-type ChannelsAccrualT struct {
+type ChannelsAccrual struct {
 	NumbOrder    chan string
-	ResponceAccr chan ResponceAccrualT
+	ResponceAccr chan ResponceAccrual
 }
 
 // Мьютексы для работы с таблицами БД
-type MutexesT struct {
+type Mutexes struct {
 	Register sync.Mutex
 }
 
 // Конфигурация сервиса
-type ActionsT struct {
-	AdptPG         actionspg.PostgresI
-	AdptAccr       actionsaccr.AccrualI
+type ActionsConf struct {
+	AdptPG         actionspg.Postgres
+	AdptAccr       actionsaccr.Accrual
 	ChAccrNewOrder chan string
 }
 
 // История вывода
-type HistoryWithdrawalsT struct {
+type HistoryWithdrawals struct {
 	Order       string
 	Sum         float64
 	ProcessedAt time.Time
 }
 
 // Интерфейсы
-type ActionsRegI interface {
-	RegistrationUser(login, password string) (string, error)
+type ActionsReg interface {
+	RegistrationUser(login, password string) (token string, err error)
 }
 
-type ActionsAuthI interface {
+type ActionsAuth interface {
 	AuthenticationUser(login, password string) (string, error)
 }
 
-type ActionsAddOrderI interface {
+type ActionsAddOrder interface {
 	AddOrder(token, order string) error
 }
 
-type ActionsGetOrdersUserI interface {
-	GetOrdersUser(token string) ([]OrderT, error)
+type ActionsGetOrdersUser interface {
+	GetOrdersUser(token string) ([]Order, error)
 }
 
-type ActionsGetUserBalanceI interface {
-	GetUserBalance(token string) (BalanceT, error)
+type ActionsGetUserBalance interface {
+	GetUserBalance(token string) (Balance, error)
 }
 
-type ActionsHistoryWithdrawelsI interface {
-	HistoryWithdrawels(token string) ([]HistoryWithdrawalsT, error)
+type ActionsHistoryWithdrawels interface {
+	HistoryWithdrawels(token string) ([]HistoryWithdrawals, error)
 }
 
-type ActionsBalanceWithdrawI interface {
-	BalanceWithdraw(token string, dataRx BalanceWithdrawT) error
+type ActionsBalanceWithdraw interface {
+	BalanceWithdraw(token string, dataRx BalanceWithdraw) error
 }
 
-type ActionsI interface {
-	ActionsRegI
-	ActionsAuthI
-	ActionsAddOrderI
-	ActionsGetOrdersUserI
-	ActionsGetUserBalanceI
-	ActionsHistoryWithdrawelsI
-	ActionsBalanceWithdrawI
+type Actions interface {
+	ActionsReg
+	ActionsAuth
+	ActionsAddOrder
+	ActionsGetOrdersUser
+	ActionsGetUserBalance
+	ActionsHistoryWithdrawels
+	ActionsBalanceWithdraw
 }
 
 // Создание экземпляра T
-func NewInstServiceActionsT(adprPG actionspg.PostgresI, adptAccr actionsaccr.AccrualI) *ActionsT {
-	return &ActionsT{
+func NewInstServiceActionsT(adprPG actionspg.Postgres, adptAccr actionsaccr.Accrual) *ActionsConf {
+	return &ActionsConf{
 		AdptPG:         adprPG,
 		AdptAccr:       adptAccr,
 		ChAccrNewOrder: make(chan string),
@@ -118,6 +118,6 @@ func NewInstServiceActionsT(adprPG actionspg.PostgresI, adptAccr actionsaccr.Acc
 }
 
 // Создание экземпляра I
-func NewInstServiceActionsI(params *ActionsT) ActionsI {
+func NewInstServiceActionsI(params *ActionsConf) Actions {
 	return params
 }

@@ -16,7 +16,7 @@ import (
 //
 // params - параметры.
 // chControllerErr - канал для возврата ошибки работы.
-func RunController(params *ControllerT, chControllerErr chan error) {
+func RunController(params *ControllerConf, chControllerErr chan error) {
 
 	cr := chi.NewRouter()
 
@@ -40,41 +40,41 @@ func RunController(params *ControllerT, chControllerErr chan error) {
 //
 // cr - роутер.
 // params - параметры.
-func routers(cr *chi.Mux, params *ControllerT) {
+func routers(cr *chi.Mux, params *ControllerConf) {
+
+	// Для аутентифицированных пользователей
+	cr.Group(func(r chi.Router) {
+		r.Use(authorizationMiddleware)
+		r.Use(encodingMiddleware)
+
+		// Добавление заказа
+		r.Post("/api/user/orders", http.HandlerFunc(params.AddOrder))
+
+		// Списание средств
+		r.Post("/api/user/balance/withdraw", http.HandlerFunc(params.BalanceWithdraw))
+
+		// Получение списка загруженных номеров заказов
+		r.Get("/api/user/orders", http.HandlerFunc(params.GetOrdersUser))
+
+		// Получение текущего баланса пользователя
+		r.Get("/api/user/balance", http.HandlerFunc(params.GetUserBalance))
+
+		// Получение информации о выводе средств
+		r.Get("/api/user/withdrawals", http.HandlerFunc(params.GetHistoryWithdrawals))
+	})
 
 	// Регистрация пользователя
-	cr.Post("/api/user/register", Middleware(http.HandlerFunc(params.Register)))
+	cr.Post("/api/user/register", http.HandlerFunc(encodingMiddleware(http.HandlerFunc(params.Register)).ServeHTTP))
 
 	// Аутентификация пользователя
-	cr.Post("/api/user/login", Middleware(http.HandlerFunc(params.Login)))
-
-	// Добавление заказа
-	cr.Post("/api/user/orders", Middleware(http.HandlerFunc(params.AddOrder)))
-
-	// Списание средств
-	cr.Post("/api/user/balance/withdraw", Middleware(http.HandlerFunc(params.BalanceWithdraw)))
-
-	// Получение списка загруженных номеров заказов
-	cr.Get("/api/user/orders", Middleware(http.HandlerFunc(params.GetOrdersUser)))
-
-	// Получение текущего баланса пользователя
-	cr.Get("/api/user/balance", Middleware(http.HandlerFunc(params.GetUserBalance)))
-
-	// Получение информации о выводе средств
-	cr.Get("/api/user/withdrawals", Middleware(http.HandlerFunc(params.GetHistoryWithdrawals)))
-
-	// ---
-
-	// Обработчик по умолчанию
-	cr.NotFound(http.HandlerFunc(DefaultHandler))
+	cr.Post("/api/user/login", http.HandlerFunc(encodingMiddleware(http.HandlerFunc(params.Login)).ServeHTTP))
 }
 
-// Функция выполняет запуск HTTP сервера.
+// Функция выполняет запуск HTTP сервера. Возвращается ошибка.
 //
 // Парметры:
 //
 // srv - настройки сервера.
-// txErr - канал для возврата ошибки.
 func startUpHTTPServer(srv *http.Server) error {
 
 	// Проверка параметров
