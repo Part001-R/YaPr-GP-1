@@ -3,6 +3,7 @@ package actionspg
 import (
 	"database/sql"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -1445,6 +1446,311 @@ func Test_GetOrdersInQueue_SUCCESS(t *testing.T) {
 			_, err := adptPG.GetOrdersInQueue()
 			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
 
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("Не все ожидания были выполнены: %s", err)
+			}
+		})
+	}
+}
+
+// CheckIDTables
+
+func TestCheckIDTables(t *testing.T) {
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Не удалось создать мок базы данных: %s", err)
+	}
+	defer db.Close()
+
+	adptPG := &PostgresConf{PtrDB: db}
+
+	// Данные для теста
+	tests := []struct {
+		nameTest  string
+		mock      func()
+		wantFlags struct {
+			users       bool
+			userTokens  bool
+			orders      bool
+			queueOrder  bool
+			balance     bool
+			withdrawals bool
+		}
+	}{
+		{
+			nameTest: "Нет предупреждений",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  false,
+				orders:      false,
+				queueOrder:  false,
+				balance:     false,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по users",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       true,
+				userTokens:  false,
+				orders:      false,
+				queueOrder:  false,
+				balance:     false,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по user_tokens",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  true,
+				orders:      false,
+				queueOrder:  false,
+				balance:     false,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по orders",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  false,
+				orders:      true,
+				queueOrder:  false,
+				balance:     false,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по queue_order",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  false,
+				orders:      false,
+				queueOrder:  true,
+				balance:     false,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по balance",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  false,
+				orders:      false,
+				queueOrder:  false,
+				balance:     true,
+				withdrawals: false,
+			},
+		},
+		{
+			nameTest: "Предупреждение по withdrawals",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 1999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       false,
+				userTokens:  false,
+				orders:      false,
+				queueOrder:  false,
+				balance:     false,
+				withdrawals: true,
+			},
+		},
+		{
+			nameTest: "Предупреждение по всем",
+			mock: func() {
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+				mock.ExpectQuery("SELECT MAX").
+					WillReturnRows(sqlmock.NewRows([]string{"maxid"}).AddRow(math.MaxInt32 - 999))
+			},
+			wantFlags: struct {
+				users       bool
+				userTokens  bool
+				orders      bool
+				queueOrder  bool
+				balance     bool
+				withdrawals bool
+			}{
+				users:       true,
+				userTokens:  true,
+				orders:      true,
+				queueOrder:  true,
+				balance:     true,
+				withdrawals: true,
+			},
+		},
+	}
+
+	// Настраиваем ожидания для каждого теста
+	for _, tt := range tests {
+		t.Run(tt.nameTest, func(t *testing.T) {
+			tt.mock()
+
+			warnFlags, err := adptPG.CheckIDTables()
+			require.NoErrorf(t, err, "неожиданная ошибка: <%v>", err)
+			assert.Equalf(t, tt.wantFlags.users, warnFlags.Users, "users - ожидался <%t> а принято <%t>", tt.wantFlags.users, warnFlags.Users)
+			assert.Equalf(t, tt.wantFlags.userTokens, warnFlags.UserTokens, "userTokens - ожидался <%t> а принято <%t>", tt.wantFlags.userTokens, warnFlags.UserTokens)
+			assert.Equalf(t, tt.wantFlags.orders, warnFlags.Orders, "orders - ожидался <%t> а принято <%t>", tt.wantFlags.orders, warnFlags.Orders)
+			assert.Equalf(t, tt.wantFlags.queueOrder, warnFlags.QueueOrder, "queueOrder - ожидался <%t> а принято <%t>", tt.wantFlags.queueOrder, warnFlags.QueueOrder)
+			assert.Equalf(t, tt.wantFlags.balance, warnFlags.Balance, "balance - ожидался <%t> а принято <%t>", tt.wantFlags.balance, warnFlags.Balance)
+			assert.Equalf(t, tt.wantFlags.withdrawals, warnFlags.Withdrawals, "withdrawals - ожидался <%t> а принято <%t>", tt.wantFlags.withdrawals, warnFlags.Withdrawals)
+
+			// Проверяем, что все ожидания были выполнены
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("Не все ожидания были выполнены: %s", err)
 			}

@@ -50,9 +50,15 @@ type ChannelsAccrual struct {
 	ResponceAccr chan ResponceAccrual
 }
 
-// Мьютексы для работы с таблицами БД
-type Mutexes struct {
-	Register sync.Mutex
+// Мьютексы для работы с адаптерами
+type mutexes struct {
+	register           sync.Mutex
+	authentication     sync.Mutex
+	addOrder           sync.Mutex
+	getOrdersUser      sync.Mutex
+	getUserBalance     sync.Mutex
+	balanceWithdraw    sync.Mutex
+	historyWithdrawals sync.Mutex
 }
 
 // Конфигурация сервиса
@@ -60,6 +66,7 @@ type ActionsConf struct {
 	AdptPG         actionspg.Postgres
 	AdptAccr       actionsaccr.Accrual
 	ChAccrNewOrder chan string
+	mu             mutexes
 }
 
 // История вывода
@@ -91,7 +98,7 @@ type ActionsGetUserBalance interface {
 }
 
 type ActionsHistoryWithdrawels interface {
-	HistoryWithdrawels(token string) ([]HistoryWithdrawals, error)
+	HistoryWithdrawals(token string) ([]HistoryWithdrawals, error)
 }
 
 type ActionsBalanceWithdraw interface {
@@ -108,16 +115,25 @@ type Actions interface {
 	ActionsBalanceWithdraw
 }
 
-// Создание экземпляра T
+// Создание экземпляра
 func NewInstServiceActionsT(adprPG actionspg.Postgres, adptAccr actionsaccr.Accrual) *ActionsConf {
 	return &ActionsConf{
 		AdptPG:         adprPG,
 		AdptAccr:       adptAccr,
 		ChAccrNewOrder: make(chan string),
+		mu: mutexes{
+			register:           sync.Mutex{},
+			authentication:     sync.Mutex{},
+			addOrder:           sync.Mutex{},
+			getOrdersUser:      sync.Mutex{},
+			getUserBalance:     sync.Mutex{},
+			balanceWithdraw:    sync.Mutex{},
+			historyWithdrawals: sync.Mutex{},
+		},
 	}
 }
 
-// Создание экземпляра I
+// Создание экземпляра
 func NewInstServiceActionsI(params *ActionsConf) Actions {
 	return params
 }

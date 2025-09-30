@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 	"unicode"
 
@@ -644,6 +645,57 @@ func (a *PostgresConf) GetNewOrderNumbers(offset int) ([]string, error) {
 
 	// Результат
 	return orderNumbers, nil
+}
+
+// Проверка текущих максимальных значений id в таблицах БД. Возвращается флаги предупреждений и ошибка.
+func (a *PostgresConf) CheckIDTables() (WarningFlagsID, error) {
+
+	var warningID WarningFlagsID
+
+	// Проверка таблицы users
+	flagID, err := isWarningIDUsersTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDUsersTable, вернула ошибку: <%w>", err)
+	}
+	warningID.Users = flagID
+
+	// Проверка таблицы user_tokens
+	flagID, err = isWarningIDUserTokensTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDUserTokensTable, вернула ошибку: <%w>", err)
+	}
+	warningID.UserTokens = flagID
+
+	// Проверка таблицы orders
+	flagID, err = isWarningIDOrdersTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDOrdersTable, вернула ошибку: <%w>", err)
+	}
+	warningID.Orders = flagID
+
+	// Проверка таблицы queue_order
+	flagID, err = isWarningIDQueueOrderTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDQueueOrderTable, вернула ошибку: <%w>", err)
+	}
+	warningID.QueueOrder = flagID
+
+	// Проверка таблицы balance
+	flagID, err = isWarningIDBalanceTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDBalanceTable, вернула ошибку: <%w>", err)
+	}
+	warningID.Balance = flagID
+
+	// Проверка таблицы withdrawals
+	flagID, err = isWarningIDWithdrawalsTable(a.PtrDB)
+	if err != nil {
+		return WarningFlagsID{}, fmt.Errorf("функция isWarningIDWithdrawalsTable, вернула ошибку: <%w>", err)
+	}
+	warningID.Withdrawals = flagID
+
+	// Результат
+	return warningID, nil
 }
 
 // Функция выполняет удалени номера заказа из очереди ожидающих. Возвращает ошибку.
@@ -1370,4 +1422,214 @@ func AddWithdrawalHistory(tx *sql.Tx, userID int64, orderNumber string, sum floa
 	}
 
 	return nil
+}
+
+// Функция выполняет проверку значения id в таблице users, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDUsersTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM users"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
+}
+
+// Функция выполняет проверку значения id в таблице user_tokens, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDUserTokensTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM user_tokens"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
+}
+
+// Функция выполняет проверку значения id в таблице orders, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDOrdersTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM orders"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
+}
+
+// Функция выполняет проверку значения id в таблице queue_order, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDQueueOrderTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM queue_order"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
+}
+
+// Функция выполняет проверку значения id в таблице balance, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDBalanceTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM balance"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
+}
+
+// Функция выполняет проверку значения id в таблице withdrawals, на приближение к максимальному значению.
+// Возвращает true - если есть детектирование приближения и ошибку.
+//
+// Параметры:
+//
+// db - указатель на БД.
+func isWarningIDWithdrawalsTable(db *sql.DB) (bool, error) {
+
+	// Проверка аргументов
+	if db == nil {
+		return false, errors.New("в аргументе db нет указателя")
+	}
+
+	// Логика
+	var maxID sql.NullInt64
+
+	query := "SELECT MAX(id) FROM withdrawals"
+
+	err := db.QueryRow(query).Scan(&maxID)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при выполнении запроса: %w", err)
+	}
+
+	if !maxID.Valid {
+		return false, nil
+	}
+
+	if maxID.Int64 >= int64(math.MaxInt32-1000) {
+		return true, nil
+	}
+
+	// Результат
+	return false, nil
 }

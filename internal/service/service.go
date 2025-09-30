@@ -95,6 +95,11 @@ func server(params *ServiceConf, adptPG actionspg.Postgres, adptAccr actionsaccr
 		return errors.New("в параметре params, нет указателя")
 	}
 
+	// Проврка значений id в таблицах БД
+	if err := checkIDTables(adptPG); err != nil {
+		return fmt.Errorf("функция checkIDTables вернула ошибку: <%w>", err)
+	}
+
 	// Проверка номеров заказа на статус NEW и перенос в очередь
 	if err := startUpCheckOrdersByNEW(adptPG); err != nil {
 		return fmt.Errorf("функция startUpCheckOrdersByNEW вернула ошибку: <%w>", err)
@@ -617,7 +622,7 @@ func processingResponceAccrual(accrResponce actionsaccr.OrderDataRx, params *Pro
 	return nil
 }
 
-// Функция выполняет еренос номеров заказа с статусом NEW, в очередь на обработку. Возвращает ошибку.
+// Функция запускается один раз при запуске приложения. Выполняет проверку заказов по стутусу NEW и переносит их в очередь на обработку. Возвращает ошибку.
 //
 // Параметры:
 //
@@ -641,7 +646,7 @@ func startUpCheckOrdersByNEW(adptPG actionspg.Postgres) error {
 			if err != nil {
 				errBase := errors.Unwrap(err)
 				if errBase.Error() == ErrOrderExistInQueue { // Если такой номер уже существует в очереди
-
+					continue
 				} else {
 					return fmt.Errorf("ошибка при сохранении заказа в резервной очереди: <%w>", err)
 				}
@@ -652,6 +657,54 @@ func startUpCheckOrdersByNEW(adptPG actionspg.Postgres) error {
 		if len(orders) < 10 {
 			break
 		}
+	}
+
+	return nil
+}
+
+// Функция выполняет проверку значений id в таблицах.  Возвращает ошибку.
+//
+// Параметры:
+//
+// adptPG - адаптер Postgres.
+func checkIDTables(adptPG actionspg.Postgres) error {
+
+	// Запуск проверки
+	warningFlagsID, err := adptPG.CheckIDTables()
+	if err != nil {
+		return fmt.Errorf("функция adptPG.CheckIDTables, вернула ошибку: <%w>", err)
+	}
+
+	// Оценка результата
+	if warningFlagsID.Users {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "users"),
+		)
+	}
+	if warningFlagsID.UserTokens {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "user_tokens"),
+		)
+	}
+	if warningFlagsID.Orders {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "orders"),
+		)
+	}
+	if warningFlagsID.QueueOrder {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "queue_order"),
+		)
+	}
+	if warningFlagsID.Balance {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "balance"),
+		)
+	}
+	if warningFlagsID.Withdrawals {
+		logger.Log.Warn("Предупреждение по ID",
+			zap.String("таблица", "withdrawals"),
+		)
 	}
 
 	return nil

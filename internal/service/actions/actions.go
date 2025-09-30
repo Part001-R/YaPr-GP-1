@@ -3,7 +3,6 @@ package actions
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
@@ -17,6 +16,9 @@ import (
 // login - логин.
 // password - пароль.
 func (a *ActionsConf) RegistrationUser(login, password string) (token string, err error) {
+
+	a.mu.register.Lock()
+	defer a.mu.register.Unlock()
 
 	// Проверка аргументов
 	if login == "" || password == "" {
@@ -87,6 +89,9 @@ func (a *ActionsConf) RegistrationUser(login, password string) (token string, er
 // password - пароль.
 func (a *ActionsConf) AuthenticationUser(login, password string) (string, error) {
 
+	a.mu.authentication.Lock()
+	defer a.mu.authentication.Unlock()
+
 	// Проверка аргументов
 	if login == "" || password == "" {
 		return "", errors.New("в одном из аргументов пустое значение")
@@ -109,6 +114,9 @@ func (a *ActionsConf) AuthenticationUser(login, password string) (string, error)
 // order - заказ.
 func (a *ActionsConf) AddOrder(token, order string) error {
 
+	a.mu.addOrder.Lock()
+	defer a.mu.addOrder.Unlock()
+
 	// Проверка аргументов
 	if token == "" {
 		return errors.New("в аргументе token нет содержимого")
@@ -118,7 +126,7 @@ func (a *ActionsConf) AddOrder(token, order string) error {
 	}
 
 	// Валидация номера заказа алгоритмом Луна
-	isValid, err := validationByLuna(order)
+	isValid, err := isValidByLuhn(order)
 	if err != nil {
 		return fmt.Errorf("функция validationByLuna, вернула ошибку: <%w>", err)
 	}
@@ -161,6 +169,9 @@ func (a *ActionsConf) AddOrder(token, order string) error {
 // token - токен.
 func (a *ActionsConf) GetOrdersUser(token string) ([]Order, error) {
 
+	a.mu.getOrdersUser.Lock()
+	defer a.mu.getOrdersUser.Unlock()
+
 	// Проверка аргументов
 	if token == "" {
 		return nil, errors.New("в аргументе token нет содержимого")
@@ -198,6 +209,9 @@ func (a *ActionsConf) GetOrdersUser(token string) ([]Order, error) {
 // token - токен.
 func (a *ActionsConf) GetUserBalance(token string) (Balance, error) {
 
+	a.mu.getUserBalance.Lock()
+	defer a.mu.getUserBalance.Unlock()
+
 	// Проверка аргументов
 	if token == "" {
 		return Balance{}, errors.New("в аргументе token нет содержимого")
@@ -234,6 +248,9 @@ func (a *ActionsConf) GetUserBalance(token string) (Balance, error) {
 // token - токен.
 func (a *ActionsConf) BalanceWithdraw(token string, dataRx BalanceWithdraw) (err error) {
 
+	a.mu.balanceWithdraw.Lock()
+	defer a.mu.balanceWithdraw.Unlock()
+
 	// Проверка аргументов
 	if token == "" {
 		return errors.New("в аргументе token нет содержимого")
@@ -246,7 +263,7 @@ func (a *ActionsConf) BalanceWithdraw(token string, dataRx BalanceWithdraw) (err
 	}
 
 	// Проверка номера заказа
-	isValid, err := validationByLuna(dataRx.Order)
+	isValid, err := isValidByLuhn(dataRx.Order)
 	if err != nil {
 		return fmt.Errorf("ошибка в функции validationByLuna: <%w>", err)
 	}
@@ -334,40 +351,15 @@ func (a *ActionsConf) BalanceWithdraw(token string, dataRx BalanceWithdraw) (err
 	return nil
 }
 
-// Функция для запуска в go рутине. Выполняет взаимодействие с Accrual.
-//
-// Параметры:
-//
-// ch - каналы для взаимодействия с go рутиной.
-// addrAccr - адрес Accrual сервиса.
-// chErr - канал возврата ошибки.
-func (a *ActionsConf) RunQueueAccrual(ch ChannelsAccrual, addrAccr string, chErr chan error) {
-
-	// Проверка аргументов
-	if chErr == nil {
-		log.Fatalf("Нет канала для chErr. Работа прервана.")
-	}
-	if ch.ResponceAccr == nil {
-		chErr <- errors.New("нет канала передачи ответа от Accrual")
-		return
-	}
-	if ch.NumbOrder == nil {
-		chErr <- errors.New("нет канала приёма номера заказа, для отправки в Accrual")
-		return
-	}
-	if addrAccr == "" {
-		chErr <- errors.New("нет содержимого в addrAccr ")
-		return
-	}
-
-}
-
 // Функция получает историю вывода пользователя. Возвращает историю вывода и ошибку.
 //
 // Параметры:
 //
 // token - токен пользователя.
-func (a *ActionsConf) HistoryWithdrawels(token string) ([]HistoryWithdrawals, error) {
+func (a *ActionsConf) HistoryWithdrawals(token string) ([]HistoryWithdrawals, error) {
+
+	a.mu.historyWithdrawals.Lock()
+	defer a.mu.historyWithdrawals.Unlock()
 
 	// Проверка аргументов
 	if token == "" {
@@ -401,7 +393,7 @@ func (a *ActionsConf) HistoryWithdrawels(token string) ([]HistoryWithdrawals, er
 // Параметры:
 //
 // number - номер для проверки.
-func validationByLuna(number string) (bool, error) {
+func isValidByLuhn(number string) (bool, error) {
 
 	// Проверка аргументов
 	if len(number) == 0 {

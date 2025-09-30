@@ -115,7 +115,7 @@ func encodingMiddleware(h http.Handler) http.Handler {
 
 		// Запуск обработчика
 		timeStart := time.Now()
-		h.ServeHTTP(ow, r) // Используем ServeHTTP для передачи управления
+		h.ServeHTTP(ow, r)
 		duration := time.Since(timeStart)
 
 		// Вывод в лог сводной информации по запросу
@@ -544,7 +544,7 @@ func (c *ControllerConf) GetHistoryWithdrawals(w http.ResponseWriter, r *http.Re
 	}
 
 	// Логика
-	history, err := c.ServAct.HistoryWithdrawels(token)
+	history, err := c.ServAct.HistoryWithdrawals(token)
 	if err != nil {
 
 		baseErr := unwrapErr(err)

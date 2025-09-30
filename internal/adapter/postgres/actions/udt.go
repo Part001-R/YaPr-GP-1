@@ -13,10 +13,6 @@ const (
 )
 
 // Типы данных
-type Mutexes struct {
-	Registration sync.RWMutex
-}
-
 type PostgresConf struct {
 	PtrDB     *sql.DB
 	muBalance sync.Mutex
@@ -27,6 +23,15 @@ type Order struct {
 	Status     string
 	Accrual    float64
 	UploadedAt string
+}
+
+type WarningFlagsID struct {
+	Users       bool
+	UserTokens  bool
+	Orders      bool
+	QueueOrder  bool
+	Balance     bool
+	Withdrawals bool
 }
 
 // Данные по заказу принятые от Accrual
@@ -125,6 +130,10 @@ type GetNewOrderNumbers interface {
 	GetNewOrderNumbers(offset int) ([]string, error)
 }
 
+type CheckIDTables interface {
+	CheckIDTables() (WarningFlagsID, error)
+}
+
 type Postgres interface {
 	RegistrationUser
 	AuthenticationUser
@@ -144,6 +153,7 @@ type Postgres interface {
 	BeginTx
 	CommitTx
 	GetNewOrderNumbers
+	CheckIDTables
 }
 
 // Создание экземпляра адаптера

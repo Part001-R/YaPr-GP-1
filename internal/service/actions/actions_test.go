@@ -37,7 +37,7 @@ func Test_validationByLuna_SUCCESS(t *testing.T) {
 
 		t.Run(tt.nameTest, func(t *testing.T) {
 
-			result, err := validationByLuna(tt.number)
+			result, err := isValidByLuhn(tt.number)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, result, "ожидаля <%t> а принят <%t>", tt.wantStatus, result)
 		})
@@ -78,7 +78,7 @@ func Test_validationByLuna_FAULT(t *testing.T) {
 
 		t.Run(tt.nameTest, func(t *testing.T) {
 
-			result, err := validationByLuna(tt.number)
+			result, err := isValidByLuhn(tt.number)
 			assert.Equalf(t, tt.wantErr, err, "ожидалась ошибка <%v> а принято <%v>", tt.wantErr, err)
 			assert.Equalf(t, tt.wantStatus, result, "ожидаля <%t> а принят <%t>", tt.wantStatus, result)
 		})
